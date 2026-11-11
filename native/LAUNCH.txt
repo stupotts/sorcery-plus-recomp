@@ -1,0 +1,83 @@
+Sorcery+ v2.7 for Windows 11 x64
+================================
+
+Put SorceryPlus.exe in a writable folder, open it, wait for the title, and
+press Z. The executable contains the assets recovered locally from your
+compatible UK Amstrad CPC disk. It can be run on its own.
+
+To update, close the game and copy the new SorceryPlus.exe into your existing
+game folder so it can find your previous settings and saves.
+Open Help > Launch Guide in the windowed menu to read this guide again.
+Help > About shows the build version and program credit.
+Help > Room Atlas opens the offline map in your default browser. Keep the
+game open while using the atlas. Save note writes to profiles\Room-Notes.json,
+and the game atlas loads that file automatically. Copy profiles to carry
+your room notes along with your saves and preferences.
+The left sidebar has room and object search. Select an object to rank its
+locations by door transitions from the selected room. Select a result to
+jump to its room and highlight its doors. The buttons above the map show
+or hide Search and Room details independently.
+Live update uses the active game for objects, monsters, and freed sorcerers.
+The live preview shows your sorcerer, and a gold border marks your room.
+Your profile's Atlas-Live.json records the current state. Uncheck Live
+update to see the original room setup. Room 29 is the Sanctuary.
+
+Controls
+--------
+Arrow keys          Fly and move
+Z                   Start or use the original fire/action control
+Space               Pause or resume the original game
+F5 / F9             Save As or choose a save to load
+Ctrl+T              End the current game and return to the title
+Alt+F4              Close Sorcery+
+F11 / Alt+Enter     Toggle borderless fullscreen
+Esc                 Leave fullscreen
+
+Settings > Display offers sharp or smooth scaling and 4:3 or 8:5 framing.
+Drag the window edges to resize it. Settings > Keyboard opens the joystick
+and pause key dialog. Click a control and press the key you want to use.
+An XInput controller can use the D-pad or left stick, A for fire, and Start
+for pause. A physical controller was not tested.
+
+Settings > Audio has separate switches and volume sliders for Sound Effects
+and Music. The In gameplay switch controls music during play. The title
+theme is always enabled, and the Music volume slider controls both.
+Select OK to apply and save your choices. The game restores them the next
+time it opens.
+
+Saves and preferences
+---------------------
+File > Save Game and F5 open Save As, where you can name a save and choose its
+folder. Choose Cancel to keep an existing file. F9 lets you select a saved
+position even from the title. The dialogs start in profiles\default. An
+existing progress.sav can be selected there.
+
+When you enter a qualifying high score, the game saves the all-time table
+in highscores.dat inside the current profile. It loads that table again on
+startup. The original Today's Scores screen tracks the current session.
+File > Reset High Scores restores the original all-time table for that
+profile after confirmation. Loading an older game save keeps that table.
+
+File > Close, the window's X, and Alt+F4 ask whether to save a game in
+progress. Choose Yes to save and close, No to close, or Cancel to keep
+playing. File > Exit to Title ends the current game and keeps the app open.
+
+To isolate another profile, open PowerShell in this folder and run:
+
+  .\SorceryPlus.exe --profile another-player
+
+profiles\SorceryPlus.ini holds the window, keyboard and audio settings
+shared by your save profiles. If this file is missing on upgrade, the
+game imports the earlier SorceryPlus.ini from beside the EXE.
+
+To carry your settings, saves and high scores to another PC, copy
+SorceryPlus.exe and the entire profiles folder.
+
+Build status
+------------
+This native build was tested on Windows 11 Pro x64. It uses Windows GDI
+for display, Windows audio, and XInput if present. It needs no CPC emulator
+or external ROM. Original CPC presentation is paced at 50 Hz. See the
+build and test report for tested areas and remaining compatibility limits.
+
+This build and its recovered game assets are for your local copy.

@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorcery+ | Room atlas</title>
+<style>
+/* COMMON */
+body { height:100dvh; display:flex; flex-direction:column; overflow:hidden }
+.toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:9px 18px; border-bottom:1px solid var(--border); background:#111820 }
+.toolbar .tools { display:flex; gap:5px; margin-left:auto }
+.live-toggle { display:flex; gap:5px; align-items:center; font-size:.86rem }
+.live-toggle input { accent-color:var(--accent) }
+.workspace { --search-width:240px; --search-track:var(--search-width); --panel-width:300px; --panel-min:220px; --map-min:240px; --divider-width:9px; --divider-track:var(--divider-width); --details-track:clamp(var(--panel-min),var(--panel-width),calc(100% - var(--map-min) - var(--divider-track) - var(--search-track))); display:grid; grid-template-columns:var(--search-track) minmax(0,1fr) var(--divider-track) var(--details-track); flex:1; min-height:0 }
+.workspace.search-hidden { --search-track:0px }
+.workspace.details-hidden { --details-track:0px; --divider-track:0px }
+#search-panel { grid-column:1; grid-row:1; border-right:1px solid var(--border) }
+#viewport { grid-column:2; grid-row:1 }
+#panel-divider { grid-column:3; grid-row:1 }
+#room-panel { grid-column:4; grid-row:1 }
+#panel-divider[hidden] { display:none }
+.search-fields { display:grid; gap:6px }
+.search-fields input, .search-fields select { width:100%; min-width:0 }
+.search-fields label { margin-top:10px; font-size:.82rem; color:var(--muted) }
+.panel-divider { display:grid; place-items:center; background:#111820; border-inline:1px solid var(--border); cursor:col-resize; touch-action:none }
+.panel-divider::before { content:''; width:3px; height:32px; border-radius:3px; background:#547181 }
+.panel-divider:hover, .panel-divider:focus-visible, .workspace.resizing .panel-divider { background:#273948 }
+.workspace.resizing { cursor:col-resize; user-select:none }
+#viewport { position:relative; min-width:0; min-height:0; overflow:hidden; background:#0b1118; touch-action:none; cursor:grab }
+#viewport.dragging { cursor:grabbing }
+svg { display:block; width:100%; height:100%; user-select:none }
+.caption { position:absolute; left:14px; bottom:11px; pointer-events:none; color:#a6bacb; font-size:.73rem; padding:6px 9px; border:1px solid #273744; border-radius:5px; background:#0b1118e8 }
+aside { min-width:0; min-height:0; overflow:auto; background:#111820; padding:18px }
+aside h2 { font-size:1.25rem; margin:4px 0 9px; line-height:1.25 }
+aside h3 { font-size:.8rem; color:var(--muted); letter-spacing:.1em; text-transform:uppercase; margin:18px 0 7px }
+.object-results { margin-top:16px; padding-top:12px; border-top:1px solid var(--border) }
+.object-results h3 { margin:0 }
+.object-results p { margin:5px 0 8px }
+.object-matches { display:grid; gap:5px; padding:3px }
+.object-matches button { text-align:left; line-height:1.4 }
+.object-matches button[aria-current="true"] { border-color:#f7da84 }
+.object-matches small { display:block; color:var(--muted) }
+.room-details { margin-top:17px; border-top:1px solid var(--border) }
+.room-details h3 { margin:12px 0 4px }
+.room-details ul { margin:0; padding-left:1.15rem; font-size:.84rem; line-height:1.45 }
+.room-details li+li { margin-top:4px }
+.room-details .small { margin:0 }
+.room-details .heal { color:#9ae5b4 }
+.room-details .drain { color:#ff9e91 }
+.room-details .lock { color:#ffd17a }
+.personal-notes { border-top:1px solid var(--border); margin-top:16px }
+.personal-notes textarea { width:100%; min-height:6rem; resize:vertical; color:var(--text); background:#0b1118; border:1px solid var(--border); border-radius:5px; padding:8px; font:inherit; font-size:.88rem }
+.note-status { min-height:1.4em; margin:5px 0 8px }
+.room-preview { position:relative; overflow:hidden; background:#000; border:1px solid var(--border); border-radius:5px }
+.room-preview img { display:block; width:100%; aspect-ratio:320/173; image-rendering:pixelated }
+.room-preview canvas { position:absolute; inset:0; width:100%; height:100%; image-rendering:pixelated }
+.sprite-choice { display:flex; align-items:flex-start; gap:6px; cursor:pointer }
+.sprite-choice input { margin:3px 0 0; flex:none; accent-color:var(--accent) }
+.door-list { display:grid; gap:6px }
+.door-list button { text-align:left; width:100%; line-height:1.35 }
+.door-list small { color:var(--muted); display:block; margin-top:4px }
+.door-list small.locked { color:#ffd17a }
+.legend { display:flex; gap:12px; flex-wrap:wrap; font-size:.74rem; color:var(--muted); margin-left:10px }
+.legend span::before { content:''; display:inline-block; width:15px; margin:0 5px 3px 0; border-top:2px solid #74dfbd }
+.legend .locked::before { border-color:#ffd17a; border-top-style:dashed }
+.legend .gate::before { border-color:#ca9bff }
+.room { cursor:pointer; outline:none }
+.room rect { fill:#111922; stroke:#3c5061; stroke-width:2px }
+.room[data-chapter="2"] rect { stroke:#58486a }
+.room.connected rect { stroke:#74dfbd; stroke-width:3px }
+.room:hover rect, .room:focus rect, .room.selected rect { stroke:#f7da84; stroke-width:3px }
+.room image { image-rendering:pixelated }
+.room .id { fill:#91d5c7; font:700 12px Consolas,monospace; letter-spacing:1px }
+.room[data-chapter="2"] .id { fill:#c3a7e8 }
+.room .name { fill:#edf4f8; font:600 12px 'Segoe UI',sans-serif }
+.wire { fill:none; stroke:#74dfbd; stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none }
+.wire.locked { stroke:#ffd17a; stroke-dasharray:9 6 }
+.wire.chapter { stroke:#ca9bff; stroke-width:4; stroke-dasharray:15 5 2 5 }
+.wire.alternate { stroke:#91afc4; stroke-dasharray:5 5; stroke-width:2.6 }
+.wire.shadow { stroke:#0b1118; stroke-width:9; stroke-dasharray:none }
+.wire.glow { opacity:.23; stroke-width:9; stroke-dasharray:none }
+.wire.active { stroke-width:6 }
+.wire.active.shadow { stroke-width:9 }
+.wire.active.glow { stroke-width:13 }
+.wire-rune { fill:#17212b; stroke:#b7f5db; stroke-width:2; pointer-events:none; opacity:.9 }
+.wire-rune.locked { stroke:#ffd17a }
+.wire-rune.chapter { stroke:#ca9bff }
+.door-dot { fill:#0b1118; stroke:#9fe0cd; stroke-width:2.5; pointer-events:none }
+.door-letter { paint-order:stroke; fill:#fff4cf; stroke:#081017; stroke-width:3px; font:bold 12px Consolas,monospace; pointer-events:none }
+.player-frame { pointer-events:none }
+.player-frame rect, .player-frame path { fill:none; stroke:#f9d982; stroke-width:2px; stroke-linecap:round; stroke-linejoin:round }
+.player-frame circle { fill:#f9d982; stroke:#15101a; stroke-width:1.5px }
+.player-frame text { fill:#fff0bc; stroke:#121820; stroke-width:4px; paint-order:stroke; font:bold 13px 'Segoe UI',sans-serif }
+.muted-room { opacity:.22 }
+.muted-wire { opacity:.19 }
+@media(max-width:800px) { .workspace { --search-width:180px; --panel-width:225px; --panel-min:190px; --map-min:200px } .legend { display:none } aside { padding:12px } }
+@media(max-width:580px) {
+  .workspace { --search-row:minmax(0,26vh); --details-row:minmax(0,34vh); grid-template-columns:1fr; grid-template-rows:minmax(0,1fr) var(--search-row) var(--details-row) }
+  .workspace.search-hidden { --search-row:0px }
+  .workspace.details-hidden { --details-row:0px }
+  #viewport { grid-column:1; grid-row:1 }
+  #search-panel { grid-column:1; grid-row:2; border-right:0 }
+  #room-panel { grid-column:1; grid-row:3 }
+  .panel-divider { display:none }
+  aside { border-top:1px solid var(--border) }
+  .room-preview { max-width:240px }
+  .toolbar .tools { margin-left:0 }
+  .caption { font-size:.66rem }
+}
+</style>
+<header><div><p class="eyebrow">AMSTRAD CPC · UK DISK EDITION</p><h1>Sorcery+ <span>Room atlas</span></h1><div class="small">Program by StuPot</div></div><a class="link-button" href="Room-Guide.html">Open room guide →</a></header>
+<div class="toolbar" aria-label="Map controls">
+  <button id="toggle-search" type="button" aria-controls="search-panel" aria-expanded="true">Hide search</button>
+  <button id="toggle-details" type="button" aria-controls="room-panel" aria-expanded="true">Hide room details</button>
+  <label class="live-toggle"><input type="checkbox" id="live-update"> Live update</label>
+  <span id="live-status" class="small" role="status"></span>
+  <div class="tools"><button id="chapter1" type="button">Chapter 1</button><button id="chapter2" type="button">Chapter 2</button><button id="fit" type="button">All rooms</button><button id="minus" type="button" aria-label="Zoom out">−</button><button id="plus" type="button" aria-label="Zoom in">+</button></div>
+  <div class="legend" aria-label="Door connection legend"><span>Door trail</span><span class="locked">Item lock</span><span class="gate">Chapter gate</span><span>Arrow: one way</span></div>
+</div>
+<main class="workspace">
+  <aside id="search-panel" aria-label="Atlas search">
+    <div class="search-fields">
+      <label for="search">Find a room</label>
+      <input id="search" type="search" list="room-options" placeholder="Room number or name">
+      <datalist id="room-options"></datalist><button id="find" type="button">Find room</button>
+      <label for="object-search">Find an object</label>
+      <select id="object-search"><option value="">Choose an object…</option></select>
+    </div>
+  </aside>
+  <div id="viewport" tabindex="0" aria-label="Room map. Drag to pan or use the arrow keys. Scroll to zoom.">
+    <svg id="map" xmlns="http://www.w3.org/2000/svg" aria-label="Sorcery+ door connections"><defs><marker id="arrow" viewBox="0 0 10 10" markerWidth="3.7" markerHeight="3.7" refX="9" refY="5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="context-stroke"/></marker></defs></svg>
+    <span class="caption" id="caption">Drag to pan · Scroll to zoom · Select a room to follow its doors</span>
+  </div>
+  <div id="panel-divider" class="panel-divider" tabindex="0" role="separator" aria-orientation="vertical" aria-controls="room-panel" aria-label="Resize room details panel" title="Drag left to widen the room details panel"></div>
+  <aside id="room-panel" aria-live="polite"></aside>
+</main>
+<script id="atlas-data" type="application/json">/* DATA */</script>
+<script>
+/* ROOM DETAILS */
+const data = JSON.parse(document.querySelector('#atlas-data').textContent);
+const {rooms, connections, layout} = data;
+const spriteSheets = data.previewSprites.sheets.map(sheet=>Uint8Array.from(atob(sheet),ch=>ch.charCodeAt(0)));
+const levels = [0,128,255];
+const previewPalette = data.previewSprites.inks.map(ink=>[levels[Math.floor(ink/3)%3],levels[Math.floor(ink/9)],levels[ink%3]]);
+const previewPens = new Map(previewPalette.map(([r,g,b],pen)=>[(r<<16)|(g<<8)|b,pen]));
+const {card, positions} = layout;
+const byId = new Map(rooms.map(room => [room.id, room]));
+const byDoor = new Map(rooms.flatMap(room => room.doors.map(door => [door.id, door])));
+const get = id => document.getElementById(id);
+const pad = number => String(number).padStart(2, '0');
+const number = room => `#${pad(room.number)}`;
+const titleCase = text => text.toLowerCase().replace(/(^|[ .-])([a-z])/g, (_, before, letter) => before + letter.toUpperCase());
+const cleanName = room => titleCase(room.title);
+const svg = get('map'), viewport = get('viewport');
+const notesKey = 'SorceryPlus.RoomNotes.v1';
+const noteLimit = 8000;
+let selected, filterChapter = 0, view = {x:0,y:0,scale:1};
+let drag = null, moved = false;
+let liveState = null, liveTimer = null, refreshRoomState = ()=>{};
+let searchOrigin, searchSignature;
+const objectLocations = new Map();
+const doorDestinations = new Map(rooms.map(room => [room.id, []]));
+for (const room of rooms) {
+  for (const name of new Set(room.items.filter(item => item.collectible).map(item => item.name))) {
+    if (!objectLocations.has(name)) objectLocations.set(name, []);
+    objectLocations.get(name).push(room);
+  }
+}
+for (const edge of connections) {
+  const from = edge.from.slice(0,2), to = edge.to.slice(0,2);
+  doorDestinations.get(from).push(to);
+  if (edge.bidirectional) doorDestinations.get(to).push(from);
+}
+
+function svgNode(tag, attrs, parent) {
+  const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  parent?.append(node);
+  return node;
+}
+
+function htmlNode(tag, parent, text, css) {
+  const node = document.createElement(tag);
+  if (text) node.textContent = text;
+  if (css) node.className = css;
+  parent?.append(node);
+  return node;
+}
+
+const objectSelect = get('object-search');
+const objectResults = htmlNode('section',get('search-panel'),null,'object-results');
+objectResults.setAttribute('aria-live','polite');
+objectResults.hidden = true;
+for (const name of [...objectLocations.keys()].sort((first,second) => first.localeCompare(second))) {
+  htmlNode('option',objectSelect,titleCase(name)).value = name;
+}
+
+function findObject(origin) {
+  if (!objectSelect.value) {
+    objectResults.replaceChildren();
+    objectResults.hidden = true;
+    return;
+  }
+  const locations = liveState?.active
+    ? rooms.filter(room=>liveRoom(room).items.some(item=>item.collectible && item.name===objectSelect.value))
+    : objectLocations.get(objectSelect.value);
+  const signature = `${origin.id}|${objectSelect.value}|${locations.map(room=>room.id).join(',')}|${!!liveState?.active}`;
+  if (signature===searchSignature) return;
+  searchSignature = signature;
+  const distances = new Map([[origin.id,0]]);
+  const queue = [origin.id];
+  for (const id of queue) {
+    for (const next of doorDestinations.get(id)) {
+      if (distances.has(next)) continue;
+      distances.set(next,distances.get(id)+1);
+      queue.push(next);
+    }
+  }
+  const distanceTo = room => distances.get(room.id) ?? Infinity;
+  const matches = [...locations].sort((first,second) => distanceTo(first)-distanceTo(second) || first.number-second.number);
+  objectResults.replaceChildren();
+  objectResults.hidden = false;
+  htmlNode('h3',objectResults,titleCase(objectSelect.value));
+  htmlNode('p',objectResults,`From ${number(origin)} ${cleanName(origin)}. Distances include locked doors.`, 'small');
+  if (!matches.length) htmlNode('p',objectResults,'No copies of this object are currently in rooms.','small');
+  const list = htmlNode('div',objectResults,null,'object-matches');
+  for (const room of matches) {
+    const distance = distanceTo(room);
+    const button = htmlNode('button',list,`${number(room)} ${cleanName(room)}`);
+    button.type = 'button';
+    button.dataset.room = room.id;
+    htmlNode('small',button, distance === 0 ? 'In this room' : distance === 1 ? '1 room away' :
+      Number.isFinite(distance) ? `${distance} rooms away` : 'No route from the starting room');
+    button.setAttribute('aria-current',String(room===selected));
+    button.onclick = () => { showRoom(room,true); button.focus({preventScroll:true}); };
+  }
+}
+
+objectSelect.addEventListener('change',()=>{
+  searchOrigin = selected;
+  searchSignature = undefined;
+  findObject(searchOrigin);
+});
+
+function titleLines(title) {
+  if (title.length <= 31) return [title];
+  const cut = title.lastIndexOf(' ', 30);
+  return cut < 1 ? [title] : [title.slice(0,cut), title.slice(cut+1)];
+}
+
+function roundedPath(points) {
+  const start = points[0];
+  let path = `M${start[0]} ${start[1]}`;
+  for (let i=1; i<points.length-1; i++) {
+    const previous = points[i-1], point = points[i], next = points[i+1];
+    const corner = (other) => {
+      const dx = other[0]-point[0], dy = other[1]-point[1];
+      const length = Math.hypot(dx,dy), curve = Math.min(length/2,8);
+      return length ? [point[0]+dx*curve/length,point[1]+dy*curve/length] : point;
+    };
+    path += ` L${corner(previous).join(' ')} Q${point.join(' ')} ${corner(next).join(' ')}`;
+  }
+  return `${path} L${points.at(-1).join(' ')}`;
+}
+
+const roomLayer = svgNode('g', {}, svg);
+const wireLayer = svgNode('g', {}, svg);
+const focusLayer = svgNode('g', {}, svg);
+const dotLayer = svgNode('g', {}, svg);
+const playerFrame = svgNode('g',{class:'player-frame',visibility:'hidden','aria-hidden':'true'},svg);
+svgNode('rect',{x:-5,y:-5,width:card.width+10,height:card.height+10,rx:10},playerFrame);
+for (const [x,y,flipX,flipY] of [[0,0,1,1],[card.width,0,-1,1],[0,card.height,1,-1],[card.width,card.height,-1,-1]]) {
+  const corner = svgNode('g',{transform:`translate(${x},${y}) scale(${flipX},${flipY})`},playerFrame);
+  svgNode('path',{d:'M-9 19V3Q-9 -9 3 -9H19 M-9 10Q-19 7 -13 -1Q-10 -5 -5 -5 M10 -9Q7 -19 -1 -13Q-5 -10 -5 -5 M-9 -9L-3 -3'},corner);
+  svgNode('circle',{cx:-9,cy:-9,r:3.5},corner);
+}
+svgNode('text',{x:card.width/2,y:-13,'text-anchor':'middle'},playerFrame).textContent = 'Player here';
+const wires = connections.map((edge, index) => {
+  const group = svgNode('g', {}, wireLayer);
+  const path = roundedPath(layout.paths[index]);
+  svgNode('path', {d:path, class:'wire shadow'}, group);
+  svgNode('path', {d:path, class:`wire ${edge.type} glow`}, group);
+  const trail = svgNode('path', {d:path, class:`wire ${edge.type}`, ...(edge.bidirectional ? {} : {'marker-end':'url(#arrow)'})}, group);
+  const middle = trail.getPointAtLength(trail.getTotalLength()/2);
+  svgNode('path',{d:'M0 -8L5 0L0 8L-5 0Z',class:`wire-rune ${edge.type}`,transform:`translate(${middle.x},${middle.y})`},group);
+  for (const id of [edge.from,edge.to]) {
+    const door = byDoor.get(id);
+    if (!door.alternates) continue;
+    const [left,top] = positions[id.slice(0,2)];
+    const doorY = (y) => top+card.imageY+(y+12)*card.imageHeight/144;
+    for (const spot of door.alternates) {
+      const x = left+(spot.x+6)*card.width/160, y = doorY(spot.y);
+      const branch = roundedPath([[x,y],[left-16,y],[left-16,doorY(door.y)]]);
+      svgNode('path',{d:branch,class:'wire shadow'},group);
+      svgNode('path',{d:branch,class:'wire alternate'},group);
+    }
+  }
+  return group;
+});
+
+const cards = new Map();
+for (const room of rooms) {
+  const [x,y] = positions[room.id];
+  const group = svgNode('g', {class:'room', transform:`translate(${x},${y})`, tabindex:0, role:'button',
+    'aria-label':`${number(room)} ${room.title}`, 'data-chapter':room.chapter}, roomLayer);
+  cards.set(room.id,group);
+  svgNode('rect', {width:card.width,height:card.height,rx:7}, group);
+  svgNode('image', {x:0,y:card.imageY,width:card.width,height:card.imageHeight,href:room.image,
+    preserveAspectRatio:'none'}, group);
+  svgNode('text', {x:128,y:17,'text-anchor':'middle',class:'id'}, group).textContent = number(room);
+  titleLines(room.title).forEach((line, i) => {
+    svgNode('text', {x:128,y:33+i*14,'text-anchor':'middle',class:'name'}, group).textContent = line;
+  });
+  group.addEventListener('click', () => { if (!moved) showRoom(room); });
+  group.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showRoom(room,true); }
+  });
+  htmlNode('option',get('room-options')).value = `${number(room)} ${cleanName(room)}`;
+}
+
+function viewBox() {
+  const width = viewport.clientWidth || 1, height = viewport.clientHeight || 1;
+  svg.setAttribute('viewBox', `${view.x} ${view.y} ${width/view.scale} ${height/view.scale}`);
+}
+
+function fit(list) {
+  const xs = list.map(room => positions[room.id][0]), ys = list.map(room => positions[room.id][1]);
+  const x = Math.min(...xs)-44, y = Math.min(...ys)-44;
+  const width = Math.max(...xs)+card.width+44-x, height = Math.max(...ys)+card.height+44-y;
+  view.scale = Math.min(viewport.clientWidth/width, viewport.clientHeight/height);
+  view.x = x - (viewport.clientWidth/view.scale-width)/2;
+  view.y = y - (viewport.clientHeight/view.scale-height)/2;
+  viewBox();
+}
+
+function centerRoom(room) {
+  const [x,y] = positions[room.id];
+  view.scale = Math.min(1.14,Math.max(.63,viewport.clientWidth/880));
+  view.x = x + card.width/2 - viewport.clientWidth/(2*view.scale);
+  view.y = y + card.height/2 - viewport.clientHeight/(2*view.scale);
+  viewBox();
+}
+
+function zoom(factor, x = viewport.clientWidth/2, y = viewport.clientHeight/2) {
+  const scale = Math.min(3,Math.max(.08,view.scale*factor));
+  view.x += x/view.scale-x/scale;
+  view.y += y/view.scale-y/scale;
+  view.scale = scale;
+  viewBox();
+}
+
+function drawPreviewSprites(canvas, photo, room, checked) {
+  const sprites = [...(room.extraSprites || [])];
+  for (const [group,records] of [room.items,room.monsters].entries()) {
+    records.forEach((record,index)=>{
+      if (checked.has(`${group}-${record.slot ?? index}`)) sprites.push(record);
+    });
+  }
+  if (room.player && parseInt(room.player.sprite,16)<96) sprites.push(room.player);
+  canvas.hidden = !sprites.length;
+  if (canvas.hidden) return;
+  const context = canvas.getContext('2d',{willReadFrequently:true});
+  const {width,height} = canvas;
+  context.drawImage(photo,0,0,width,height);
+  const image = context.getImageData(0,0,width,height);
+  const pixels = image.data;
+  const sheet = spriteSheets[room.chapter-1];
+  // The CPC draws sprites by XORing the packed colour indices with the playfield.
+  for (const record of sprites) {
+      const offset = parseInt(record.sprite,16)*144;
+      const start = Math.ceil(record.y*height/144);
+      const end = Math.min(height,Math.ceil((record.y+24)*height/144));
+      for (let y=start; y<end; y++) {
+        const row = Math.floor(y*144/height)-record.y;
+        for (let x=0; x<12 && record.x+x<160; x++) {
+          const bits = sheet[offset+row*6+(x>>1)] << (x&1);
+          const pen = (bits>>7&1)|(bits>>2&2)|(bits>>3&4)|(bits<<2&8);
+          if (!pen) continue;
+          const pixel = (y*width+(record.x+x)*2)*4;
+          const background = previewPens.get((pixels[pixel]<<16)|(pixels[pixel+1]<<8)|pixels[pixel+2]);
+          const colour = previewPalette[background^pen];
+          pixels.set(colour,pixel);
+          pixels.set(colour,pixel+4);
+        }
+      }
+  }
+  context.putImageData(image,0,0);
+}
+
+const gameNotes = location.protocol === 'http:' && location.hostname === '127.0.0.1';
+
+function liveRoom(room) {
+  const snapshot = liveState?.active ? liveState.rooms[room.id] : null;
+  if (!snapshot) return room;
+  const items = snapshot.items.map(item=>({...item,
+    name:data.itemCatalog[room.chapter][item.sprite] || `Object ${item.sprite}`,
+    collectible:room.id!=='46'
+  }));
+  const monsters = snapshot.monsters.map(actor=>{
+    const original = room.monsters.find(monster=>monster.slot===actor.slot);
+    return {...original,...actor,name:original?.name || 'Monster'};
+  });
+  const extraSprites = [];
+  const notes = [...room.notes];
+  if (room.prisoner && !snapshot.prisoner) {
+    extraSprites.push({...room.prisoner,sprite:'54'}); // XOR removes the captive from the static thumbnail.
+    notes.unshift('Sorcerer freed.');
+  }
+  if (room.id==='1C') {
+    extraSprites.push(...liveState.sanctuary);
+    notes.splice(0,1,`${liveState.freed.length} of 8 sorcerers freed.`);
+    for (const id of liveState.freed) {
+      const source = byId.get(id);
+      notes.push(`Freed from ${number(source)} ${cleanName(source)}.`);
+    }
+  }
+  const player = liveState.room===room.id ? liveState.player : null;
+  if (player) notes.unshift('Your sorcerer is in this room.');
+  return {...room,items,monsters,extraSprites,player,notes,prisoner:snapshot.prisoner?room.prisoner:null};
+}
+
+const liveToggle = get('live-update'), liveStatus = get('live-status');
+let liveGeneration = 0;
+let outlinedRoom = null;
+if (!gameNotes) {
+  liveToggle.disabled = true;
+  liveToggle.parentElement.title = 'Open the atlas from the game to see live room data.';
+}
+
+function applyLiveState(snapshot) {
+  liveState = snapshot;
+  const currentRoom = snapshot?.active ? byId.get(snapshot.room) : null;
+  if (currentRoom!==outlinedRoom) {
+    if (outlinedRoom) cards.get(outlinedRoom.id).setAttribute('aria-label',`${number(outlinedRoom)} ${outlinedRoom.title}`);
+    outlinedRoom = currentRoom;
+    playerFrame.setAttribute('visibility',currentRoom?'visible':'hidden');
+    if (currentRoom) {
+      const [x,y] = positions[currentRoom.id];
+      playerFrame.setAttribute('transform',`translate(${x},${y})`);
+      cards.get(currentRoom.id).setAttribute('aria-label',`${number(currentRoom)} ${currentRoom.title}, player here`);
+    }
+  }
+  liveStatus.textContent = !liveToggle.checked ? '' : snapshot?.active
+    ? `Live · ${snapshot.freed.length}/8 sorcerers freed`
+    : snapshot ? 'Start or load a game for live updates.' : 'Live game unavailable. Showing start locations.';
+  refreshRoomState();
+  if (searchOrigin && objectSelect.value) findObject(searchOrigin);
+}
+
+async function pollLive(generation) {
+  try {
+    const response = await fetch('Atlas-Live.json',{cache:'no-store',signal:AbortSignal.timeout(2000)});
+    if (!response.ok) throw Error();
+    const snapshot = await response.json();
+    if (generation===liveGeneration) applyLiveState(snapshot);
+  } catch {
+    if (generation===liveGeneration) applyLiveState(null);
+  }
+  if (generation===liveGeneration) liveTimer = setTimeout(()=>pollLive(generation),650);
+}
+
+liveToggle.addEventListener('change',()=>{
+  ++liveGeneration;
+  clearTimeout(liveTimer);
+  if (liveToggle.checked) {
+    liveStatus.textContent = 'Loading live rooms…';
+    pollLive(liveGeneration);
+  } else applyLiveState(null);
+});
+let savedNotes = {};
+const drafts = new Map();
+let loadError = false;
+const notesReady = (async()=>{
+  try {
+    if (gameNotes) {
+      const response = await fetch('Room-Notes.json', {cache:'no-store'});
+      if (!response.ok) throw Error();
+      savedNotes = await response.json();
+    } else {
+      savedNotes = JSON.parse(localStorage.getItem(notesKey)||'{}');
+    }
+  } catch {
+    loadError = true;
+  }
+})();
+
+function addPersonalNotes(panel, room) {
+  const section = htmlNode('section',panel,null,'personal-notes');
+  const heading = htmlNode('h3',section,'Your notes');
+  heading.id = 'personal-notes-heading';
+  const editor = htmlNode('textarea',section);
+  editor.setAttribute('aria-labelledby',heading.id);
+  editor.maxLength = noteLimit;
+  editor.placeholder = 'Add a reminder for this room…';
+  editor.value = drafts.get(room.id) ?? savedNotes[room.id] ?? '';
+  const status = htmlNode('p',section,'Loading notes…','small note-status');
+  status.setAttribute('role','status');
+  const save = htmlNode('button',section,'Save note');
+  save.disabled = true;
+  notesReady.then(()=>{
+    editor.defaultValue = savedNotes[room.id] ?? '';
+    editor.value = drafts.get(room.id) ?? savedNotes[room.id] ?? '';
+    status.textContent = loadError ? 'Could not load notes. Reopen the atlas and try again.'
+      : drafts.has(room.id) ? 'Unsaved changes.'
+      : gameNotes ? 'Notes are stored with your game saves.' : 'Standalone atlas. Notes are stored in this browser.';
+    save.disabled = loadError;
+  });
+  editor.addEventListener('input',()=>{
+    drafts.set(room.id,editor.value);
+    status.textContent = 'Unsaved changes.';
+  });
+  save.onclick = async()=>{
+    const value = editor.value;
+    save.disabled = true;
+    try {
+      if (gameNotes) {
+        const response = await fetch(`notes/${room.id}`, {
+          method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)
+        });
+        if (!response.ok) throw Error();
+      } else {
+        const latest = JSON.parse(localStorage.getItem(notesKey)||'{}');
+        localStorage.setItem(notesKey,JSON.stringify({...latest,[room.id]:value}));
+      }
+      savedNotes[room.id] = value;
+      if (drafts.get(room.id) === value) drafts.delete(room.id);
+      status.textContent = drafts.has(room.id) ? 'Unsaved changes.'
+        : gameNotes ? 'Saved to profiles\\Room-Notes.json.' : 'Saved in this browser.';
+    } catch {
+      status.textContent = gameNotes ? 'Could not save. Keep the game open and check the profiles folder is writable.'
+        : 'Could not save in this browser. Open the atlas from the game to save to its notes file.';
+    } finally {
+      save.disabled = false;
+    }
+  };
+}
+
+function showRoom(room, center = false) {
+  selected = room;
+  if (filterChapter && filterChapter !== room.chapter) filterChapter = 0;
+  const neighbors = new Set();
+  focusLayer.replaceChildren();
+  dotLayer.replaceChildren();
+  connections.forEach((edge,index) => {
+    const first = byId.get(edge.from.slice(0,2)), second = byId.get(edge.to.slice(0,2));
+    const related = first === room || second === room;
+    wires[index].classList.toggle('muted-wire', !related);
+    if (related) {
+      neighbors.add(first === room ? second.id : first.id);
+      const clone = wires[index].cloneNode(true);
+      clone.classList.remove('muted-wire');
+      for (const path of clone.children) path.classList.add('active');
+      focusLayer.append(clone);
+    }
+  });
+  for (const entry of rooms) {
+    const node = cards.get(entry.id);
+    node.classList.toggle('selected', entry === room);
+    node.classList.toggle('connected', entry !== room && neighbors.has(entry.id));
+    node.classList.toggle('muted-room', filterChapter && entry.chapter !== filterChapter && !neighbors.has(entry.id));
+  }
+  for (const door of room.doors) {
+    const [left,top] = positions[room.id];
+    const x = left+(door.x+6)*card.width/160, y = top+card.imageY+(door.y+12)*card.imageHeight/144;
+    svgNode('circle',{cx:x,cy:y,r:4,class:'door-dot'},dotLayer);
+    const right = door.x > 100;
+    svgNode('text',{x:x+(right?-8:8),y:y-5,'text-anchor':right?'end':'start',class:'door-letter'},dotLayer).textContent = door.id.at(-1);
+  }
+  const panel = get('room-panel');
+  panel.replaceChildren();
+  for (const button of objectResults.querySelectorAll('button')) {
+    button.setAttribute('aria-current',String(button.dataset.room===room.id));
+  }
+  htmlNode('p',panel,`${number(room)} · CHAPTER ${room.chapter}`,'eyebrow');
+  htmlNode('h2',panel,cleanName(room));
+  const preview = htmlNode('div',panel,null,'room-preview');
+  const photo = htmlNode('img',preview);
+  photo.src = room.image;
+  photo.alt = `Playfield of room ${number(room)}`;
+  const overlay = htmlNode('canvas',preview);
+  overlay.width = 320;
+  overlay.height = 173;
+  overlay.hidden = true;
+  overlay.setAttribute('aria-hidden','true');
+  const staticChecked = new Set(), liveHidden = new Set();
+  htmlNode('h3',panel,'Doors from this room');
+  const list = htmlNode('div',panel,null,'door-list');
+  for (const door of room.doors) {
+    const target = byId.get(door.targetRoom);
+    const button = htmlNode('button',list,`${door.id.at(-1)} → ${number(target)} ${cleanName(target)} · ${door.targetDoor.at(-1)}`);
+    const edge = connections.find(edge => edge.from===door.id || (edge.bidirectional && edge.to===door.id));
+    const hint = [door.requires, edge && !edge.bidirectional ? 'One way' : ''].filter(Boolean).join(' · ');
+    if (hint) htmlNode('small',button,hint,door.requires?'locked':'');
+    button.addEventListener('click',()=>showRoom(target,true));
+  }
+  const details = htmlNode('div',panel,null,'room-details');
+  let displayedRoom, detailsSignature, spriteSignature;
+  const previewReady = photo.decode().then(()=>true,()=>false);
+  async function paintPreview() {
+    if (!(await previewReady) || !overlay.isConnected) return;
+    const checked = displayedRoom===room ? staticChecked : new Set();
+    if (displayedRoom!==room) {
+      for (const [group,records] of [displayedRoom.items,displayedRoom.monsters].entries()) {
+        for (const record of records) {
+          const key = `${group}-${record.slot}`;
+          if (!liveHidden.has(key)) checked.add(key);
+        }
+      }
+    }
+    drawPreviewSprites(overlay,photo,displayedRoom,checked);
+  }
+  refreshRoomState = ()=>{
+    displayedRoom = liveRoom(room);
+    const live = displayedRoom!==room;
+    const entries = roomDetails(displayedRoom,byId,number,true);
+    const records = [displayedRoom.items,displayedRoom.monsters];
+    const labelSignature = JSON.stringify([live,entries,records.map(group=>group.map(record=>record.slot))]);
+    if (labelSignature!==detailsSignature) {
+      detailsSignature = labelSignature;
+      details.replaceChildren();
+      const labels = [live?'Live objects':'Objects at the start',live?'Live monsters':'Monsters at the start','Cauldrons','Locks and barriers','Room notes'];
+      entries.forEach((group,index)=>{
+        htmlNode('h3',details,labels[index]);
+        if (!group.length) {
+          htmlNode('p',details,'None','small');
+          return;
+        }
+        const list = htmlNode('ul',details);
+        group.forEach((entry,position)=>{
+          const line = htmlNode('li',list,index<2?null:entry.text,entry.css);
+          if (index>=2) return;
+          const label = htmlNode('label',line,null,'sprite-choice');
+          const checkbox = htmlNode('input',label);
+          const key = `${index}-${records[index][position].slot ?? position}`;
+          checkbox.type = 'checkbox';
+          checkbox.checked = live ? !liveHidden.has(key) : staticChecked.has(key);
+          htmlNode('span',label,entry.text);
+          checkbox.addEventListener('change',()=>{
+            const choices = live ? liveHidden : staticChecked;
+            if (checkbox.checked!==live) choices.add(key);
+            else choices.delete(key);
+            paintPreview();
+          });
+        });
+      });
+    }
+    const nextSpriteSignature = JSON.stringify([live,records,displayedRoom.extraSprites,displayedRoom.player]);
+    if (nextSpriteSignature!==spriteSignature) {
+      spriteSignature = nextSpriteSignature;
+      paintPreview();
+    }
+  };
+  refreshRoomState();
+  const guide = htmlNode('a',panel,'Open this room in the guide →','guide-link');
+  guide.href = `Room-Guide.html#room-${room.id}`;
+  addPersonalNotes(panel,room);
+  panel.scrollTop = 0;
+  history.replaceState(null,'',`#room-${room.id}`);
+  if (center) centerRoom(room);
+}
+
+function findRoom() {
+  const term = get('search').value.trim().toLowerCase();
+  const result = rooms.find(room => `${number(room)} ${cleanName(room)}`.toLowerCase() === term)
+    || rooms.find(room => term === number(room) || term === String(room.number) || term === pad(room.number) || term === `0x${room.id.toLowerCase()}`)
+    || rooms.find(room => term && room.title.toLowerCase().includes(term));
+  if (result) { get('search').setCustomValidity(''); showRoom(result,true); }
+  else { get('search').setCustomValidity('No matching room. Try a room number or name.'); get('search').reportValidity(); }
+}
+
+get('search').addEventListener('input',()=>get('search').setCustomValidity(''));
+get('search').addEventListener('keydown',event=>{if(event.key==='Enter')findRoom();});
+get('find').onclick = findRoom;
+get('fit').onclick = () => { filterChapter=0; showRoom(selected); fit(rooms); };
+for (const chapter of [1,2]) get(`chapter${chapter}`).onclick = () => {
+  filterChapter=chapter;
+  const group = rooms.filter(room=>room.chapter===chapter);
+  showRoom(selected.chapter===chapter ? selected : group[0]);
+  fit(group);
+};
+get('plus').onclick = () => zoom(1.32);
+get('minus').onclick = () => zoom(1/1.32);
+viewport.addEventListener('wheel', event=>{
+  event.preventDefault();
+  const bounds=viewport.getBoundingClientRect();
+  zoom(Math.exp(-event.deltaY*.0014),event.clientX-bounds.left,event.clientY-bounds.top);
+},{passive:false});
+viewport.addEventListener('pointerdown',event=>{
+  if (event.button !== 0) return;
+  moved=false;
+  drag={x:event.clientX,y:event.clientY,pointer:event.pointerId};
+});
+viewport.addEventListener('pointermove',event=>{
+  if (!drag || drag.pointer!==event.pointerId) return;
+  const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
+  if (!moved && Math.hypot(dx,dy)<4) return;
+  if (!moved) viewport.setPointerCapture(event.pointerId);
+  moved=true;
+  viewport.classList.add('dragging');
+  view.x-=dx/view.scale;
+  view.y-=dy/view.scale;
+  drag.x=event.clientX; drag.y=event.clientY;
+  viewBox();
+});
+for (const action of ['pointerup','pointercancel','lostpointercapture','pointerleave']) viewport.addEventListener(action,()=>{
+  drag=null;
+  viewport.classList.remove('dragging');
+});
+viewport.addEventListener('keydown',event=>{
+  const offsets={ArrowLeft:[-70,0],ArrowRight:[70,0],ArrowUp:[0,-70],ArrowDown:[0,70]};
+  if (event.key in offsets) { event.preventDefault(); view.x+=offsets[event.key][0]/view.scale; view.y+=offsets[event.key][1]/view.scale; viewBox(); }
+  if (event.key==='+' || event.key==='=') zoom(1.32);
+  if (event.key==='-') zoom(1/1.32);
+});
+const divider = get('panel-divider'), workspace = divider.parentElement, panel = get('room-panel');
+const searchPanel = get('search-panel');
+let panelDrag = null;
+
+function toggleSidebar(button, sidebar, name, dividerToHide) {
+  const width = viewport.clientWidth, height = viewport.clientHeight;
+  sidebar.hidden = !sidebar.hidden;
+  if (dividerToHide) dividerToHide.hidden = sidebar.hidden;
+  workspace.classList.toggle(`${name==='search'?'search':'details'}-hidden`,sidebar.hidden);
+  button.textContent = `${sidebar.hidden?'Show':'Hide'} ${name}`;
+  button.setAttribute('aria-expanded',String(!sidebar.hidden));
+  view.x += (width-viewport.clientWidth)/(2*view.scale);
+  view.y += (height-viewport.clientHeight)/(2*view.scale);
+  viewBox();
+  updateDivider();
+}
+
+get('toggle-search').onclick = event=>toggleSidebar(event.currentTarget,searchPanel,'search');
+get('toggle-details').onclick = event=>toggleSidebar(event.currentTarget,panel,'room details',divider);
+
+function panelLimits() {
+  const style = getComputedStyle(workspace);
+  return [parseFloat(style.getPropertyValue('--panel-min')),
+    workspace.clientWidth-parseFloat(style.getPropertyValue('--map-min'))-divider.offsetWidth-searchPanel.offsetWidth];
+}
+
+function updateDivider() {
+  if (!divider.offsetWidth) return;
+  const [min,max] = panelLimits();
+  divider.setAttribute('aria-valuemin',min);
+  divider.setAttribute('aria-valuemax',max);
+  divider.setAttribute('aria-valuenow',panel.offsetWidth);
+}
+
+function resizePanel(width) {
+  const [min,max] = panelLimits();
+  workspace.style.setProperty('--panel-width',`${Math.round(Math.min(max,Math.max(min,width)))}px`);
+  updateDivider();
+}
+
+divider.addEventListener('pointerdown',event=>{
+  if (event.button!==0 || panelDrag) return;
+  divider.setPointerCapture(event.pointerId);
+  panelDrag={pointer:event.pointerId,x:event.clientX,width:panel.offsetWidth};
+  workspace.classList.add('resizing');
+});
+divider.addEventListener('pointermove',event=>{
+  if (panelDrag?.pointer===event.pointerId) resizePanel(panelDrag.width+panelDrag.x-event.clientX);
+});
+for (const action of ['pointerup','pointercancel','lostpointercapture']) divider.addEventListener(action,event=>{
+  if (panelDrag?.pointer!==event.pointerId) return;
+  panelDrag=null;
+  workspace.classList.remove('resizing');
+});
+divider.addEventListener('keydown',event=>{
+  if (event.key!=='ArrowLeft' && event.key!=='ArrowRight') return;
+  event.preventDefault();
+  resizePanel(panel.offsetWidth+(event.key==='ArrowLeft'?32:-32));
+});
+new ResizeObserver(()=>{ viewBox(); updateDivider(); }).observe(viewport);
+updateDivider();
+const hashRoom = byId.get(location.hash.replace('#room-','').toUpperCase());
+const first = hashRoom || byId.get('00');
+showRoom(first);
+fit([first,...first.doors.map(door=>byId.get(door.targetRoom))]);
+</script>
+</html>

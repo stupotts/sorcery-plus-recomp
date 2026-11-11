@@ -1,0 +1,15 @@
+:root { color-scheme:dark; --bg:#0b1118; --panel:#141e28; --border:#2b3b49; --text:#edf4f8; --muted:#aabecd; --accent:#93dfcd; font:15px 'Segoe UI',system-ui,sans-serif }
+* { box-sizing:border-box }
+body { margin:0; color:var(--text); background:var(--bg) }
+header { display:flex; align-items:center; justify-content:space-between; gap:12px; background:#111922; border-bottom:1px solid var(--border); padding:12px 18px }
+h1 { font-size:1.6rem; margin:1px 0 0; letter-spacing:-.035em; line-height:1.15 }
+h1 span { color:var(--muted); font-weight:450; font-size:.85em; margin-left:6px }
+.eyebrow { color:var(--accent); font:700 .71rem Consolas,monospace; letter-spacing:.12em; margin:0 0 4px }
+.small { color:var(--muted); font-size:.82rem; line-height:1.45 }
+a { color:var(--accent) }
+.link-button, button, input, select { border:1px solid var(--border); border-radius:5px; background:#1a2733; padding:7px 9px; color:var(--text); font:inherit }
+.link-button { white-space:nowrap; font-size:.85rem; text-decoration:none }
+button { cursor:pointer; font-size:.86rem }
+button:hover, .link-button:hover { background:#273948; border-color:#547181 }
+:focus-visible { outline:2px solid #f9d676; outline-offset:2px }
+.guide-link { display:inline-block; margin:14px 0 4px; font-size:.88rem }

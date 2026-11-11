@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sorcery+ | Room guide</title>
+<style>
+/* COMMON */
+main { max-width:1290px; padding:20px 18px; margin:auto }
+.controls { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin:15px 0 }
+.controls input[type="search"] { flex:1; max-width:34rem; min-width:13rem }
+.controls label { display:flex; align-items:center; gap:5px; padding:0 4px }
+.table-wrap { overflow:auto; border:1px solid var(--border); border-radius:7px }
+table { border-collapse:collapse; width:100%; text-align:left; font-size:.85rem; line-height:1.35; min-width:920px }
+th,td { padding:10px; border-bottom:1px solid var(--border); vertical-align:top }
+th { background:#202e3b; color:#b9d4e4 }
+tbody tr:nth-child(even) { background:#111a23 }
+tbody tr:target, tbody tr.selected { background:#273940; box-shadow:inset 4px 0 #f2d47a }
+tr:last-child td { border-bottom:0 }
+.room-name { display:block; color:#edf4f8; font-weight:600; margin-top:3px }
+.empty { color:#8c9dad }
+.heal { color:#9ae5b4 } .drain { color:#ff9e91 } .lock { color:#ffd17a }
+ul { padding-left:1.1rem; margin:0 }
+li+li { margin-top:.28rem }
+.notes { max-width:78ch; line-height:1.5 }
+@media print { :root { color-scheme:light; --text:#10151b; --muted:#38434b; --bg:#fff; --border:#a6abb0; --accent:#145144 } header, th, tbody tr:nth-child(even) {background:#fff} .controls {display:none} .room-name, .heal, .drain, .lock, th {color:#111} table {min-width:0} tr {break-inside:avoid} }
+</style>
+<header><div><p class="eyebrow">AMSTRAD CPC · UK DISK EDITION</p><h1>Sorcery+ <span>Room guide</span></h1></div><a href="Room-Atlas.html" class="link-button">← Open room atlas</a></header>
+<main>
+  <p class="notes">Starting objects, monsters and cauldrons by room, plus door requirements and item-operated barriers. Room numbers match the atlas. The letters A–D identify the doors on each room image.</p>
+  <div class="controls">
+    <input id="filter" type="search" placeholder="Filter by room, object, monster or lock" aria-label="Filter by room, object, monster or lock">
+    <select id="chapter" aria-label="Chapter"><option value="0">Both chapters</option><option value="1">Chapter 1</option><option value="2">Chapter 2</option></select>
+    <label><input type="checkbox" id="cauldrons"> Cauldrons only</label>
+    <label><input type="checkbox" id="locks"> Locks and barriers only</label>
+    <output id="count" class="small" aria-live="polite"></output>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th scope="col">Room</th><th scope="col">Objects at the start</th><th scope="col">Monsters at the start</th><th scope="col">Cauldrons</th><th scope="col">Locks and barriers</th><th scope="col">Room notes</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table></div>
+  <p class="small notes">Enemy labels describe the original sprites. The counts come from the starting room records. Later effects, encounters triggered during play, and objects carried in from another room can change what you see.</p>
+  <p class="small notes">The original manual confirms the chapter split and notes that some doors and secret passages require an object. The specific destinations, items and energy effects above come from the supplied game data and code. <a href="https://www.cpc-power.com/extra_lire_fichier.php?extra=notice&amp;fiche=1989&amp;part=B&amp;slot=1&amp;type=.pdf">Original Sorcery+ manual (French)</a></p>
+</main>
+<script id="guide-data" type="application/json">/* DATA */</script>
+<script>
+/* ROOM DETAILS */
+const rooms = JSON.parse(document.querySelector('#guide-data').textContent);
+const get = id => document.getElementById(id);
+const byId = new Map(rooms.map(room=>[room.id,room]));
+const number = room => `#${String(room.number).padStart(2,'0')}`;
+const readable = text => text === text.toUpperCase() ? text.toLowerCase().replace(/(^|[ .-])([a-z])/g, (_, p,l)=>p+l.toUpperCase()) : text;
+
+function add(parent, tag, text, css) {
+  const element = document.createElement(tag);
+  if (text) element.textContent = text;
+  if (css) element.className = css;
+  parent.append(element);
+  return element;
+}
+
+function listCell(row, entries) {
+  const td = add(row,'td');
+  if (!entries.length) add(td,'span','—','empty');
+  else {
+    const ul = add(td,'ul');
+    for (const entry of entries) add(ul,'li',entry.text,entry.css);
+  }
+}
+
+const records = [];
+for (const room of rooms) {
+  const row = add(get('rows'),'tr');
+  row.id = `room-${room.id}`;
+  const cell = add(row,'td');
+  add(cell,'a',number(room)).href = `Room-Atlas.html#room-${room.id}`;
+  add(cell,'span',readable(room.title),'room-name');
+  add(cell,'span',`Chapter ${room.chapter} · disk ${room.id}`,'small');
+  const details = roomDetails(room,byId,number);
+  for (const entries of details) listCell(row,entries);
+  records.push({room,row,search:`${row.textContent} ${number(room)} ${room.number}`.toLowerCase(),locked:details[3].length>0});
+}
+
+function filter() {
+  const term = get('filter').value.trim().toLowerCase();
+  const chapter = Number(get('chapter').value);
+  let shown=0;
+  for (const entry of records) {
+    const {room,row,search,locked} = entry;
+    row.hidden = (chapter && room.chapter!==chapter) || (get('cauldrons').checked && !room.cauldrons.length)
+      || (get('locks').checked && !locked) || (term && !search.includes(term));
+    if (!row.hidden) shown++;
+  }
+  get('count').textContent=`${shown} of ${rooms.length} rooms`;
+}
+
+for (const id of ['filter','chapter','cauldrons','locks']) get(id).addEventListener('input',filter);
+filter();
+const target = location.hash && get(location.hash.slice(1));
+if (target) requestAnimationFrame(()=>target.scrollIntoView({block:'center'}));
+</script>
+</html>
