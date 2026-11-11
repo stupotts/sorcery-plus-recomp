@@ -33,7 +33,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -CheckDisk -
 
 Replace the example path with your own. You can also put a copy beside `Build.ps1` named `game.dsk` and omit `-Disk`.
 
-The UK reference can be identified without the build tools by its SHA-256, `f5dee21140345ea84bee66ccf86db892c079ce13bc1d13c240a2103ba0ce2a26`. For a different hash, PowerShell asks whether to try the image. Type **Y** to extract and check the game files and sectors with Node.js and Python. The build detects the edition from its decoded `CODE.BIN` and checks its accompanying data. A valid high-score table can differ because the original game writes new scores back to the disk. Use `-TryOtherDisk` to run the same checks without the prompt.
+The build recognizes all four tested images by SHA-256. An exact match builds without a confirmation prompt, and `-CheckDisk` can identify it without the build tools. For an unrecognized hash, PowerShell asks whether to try the image. Type **Y** to extract and check the game files and sectors with Node.js and Python. The build detects the edition from its decoded `CODE.BIN` and checks its accompanying data. A valid high-score table can differ because the original game writes new scores back to the disk. Use `-TryOtherDisk` to run the same checks without the prompt.
 
 ## Build and play
 
@@ -62,7 +62,7 @@ The UK build reached Outside the Castle in a 400-frame Windows 11 x64 gameplay r
 | `-Zig <zig.exe>` | Use a specific Zig executable. Defaults to Zig on `PATH`. |
 | `-Optimize <0–3>` | Choose the compiler optimization level. The default is `2`. |
 | `-CheckDisk` | Check the primary disk and stop before compilation. |
-| `-TryOtherDisk` | Try an image with a different hash without the confirmation prompt. The game data still goes through compatibility checks. |
+| `-TryOtherDisk` | Try an image whose hash matches none of the tested images without the confirmation prompt. The game data still goes through compatibility checks. |
 | `-Launch` | Open the game after a successful build. |
 
 Saves and preferences go in `profiles` beside the EXE. To keep using an existing profile folder, build to its current game folder with `-Output` or copy the profile folder beside the new EXE. See the [build notes](native/BUILD.md) for details.

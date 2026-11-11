@@ -12,18 +12,24 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$expectedHash = 'F5DEE21140345EA84BEE66CCF86DB892C079CE13BC1D13C240A2103BA0CE2A26'
+$testedDisks = @{
+    'F5DEE21140345EA84BEE66CCF86DB892C079CE13BC1D13C240A2103BA0CE2A26' = 'UK reference DSK'
+    'CA18CFE6F9D28364B29F8171BFEA2A2492C901331A60E3A7A79BA5D89BE96F68' = 'UK Extended DSK'
+    'B31EBE761D11A663FD3B5B6E233DB9E4FDCBA9948AED6E057E8F231A5F5873F4' = 'French Extended DSK'
+    'EEC7D47DFB3FC418B241CD03AA0AD7536E499EE35FA2CB79C0EB901D4B7ED430' = 'French Extended DSK with alternate tileset'
+}
 if (!(Test-Path -LiteralPath $Disk -PathType Leaf)) {
     throw "Disk image not found at '$Disk'. Put your compatible CPC disk image beside Build.ps1 as game.dsk, or pass -Disk with its path."
 }
 $Disk = (Resolve-Path -LiteralPath $Disk).ProviderPath
 $diskHash = (Get-FileHash -LiteralPath $Disk -Algorithm SHA256).Hash
-if ($CheckDisk -and $diskHash -eq $expectedHash) {
-    Write-Output "Compatible UK disk image. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
+$testedDisk = $testedDisks[$diskHash]
+if ($CheckDisk -and $testedDisk) {
+    Write-Output "Compatible $testedDisk. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
     return
 }
-if ($diskHash -ne $expectedHash -and !$TryOtherDisk) {
-    Write-Host "This disk image differs from the tested dump. SHA-256 $diskHash"
+if (!$testedDisk -and !$TryOtherDisk) {
+    Write-Host "This disk image does not match any of the tested UK or French images. SHA-256 $diskHash"
     $choice = Read-Host 'Try extracting it and checking the game data? [y/N]'
     if ($choice -notmatch '^(y|yes)$') {
         Write-Output 'Disk check canceled.'
