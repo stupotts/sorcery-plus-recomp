@@ -1,0 +1,14 @@
+{
+  "files.associations": {
+    "*.html.in": "html",
+    "translated.inc": "c",
+    "*.rc": "rc"
+  },
+  "files.exclude": {
+    "**/__pycache__": true,
+    "native/build": true
+  },
+  "search.exclude": {
+    "native/build": true
+  }
+}
