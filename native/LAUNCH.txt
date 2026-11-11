@@ -62,8 +62,9 @@ Sorcery+ save, rename a copy from .sav to .sorceryplus and load it with F9.
 When you enter a qualifying high score, the game saves the all-time table
 in highscores.dat inside the current profile. It loads that table again on
 startup. The original Today's Scores screen tracks the current session.
-File > Reset High Scores restores the original all-time table for that
-profile after confirmation. Loading an older game save keeps that table.
+File > High Scores opens the all-time table for the current profile. Use
+Reset in that window to restore the scores from the original disk after
+confirmation. Loading an older game save keeps the current high-score table.
 
 File > Close, the window's X, and Alt+F4 ask whether to save a game in
 progress. Choose Yes to save and close, No to close, or Cancel to keep

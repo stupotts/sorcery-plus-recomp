@@ -33,7 +33,7 @@ enum {
     MENU_EXIT_TO_TITLE,
     MENU_KEYBOARD,
     MENU_AUDIO,
-    MENU_RESET_HIGH_SCORES,
+    MENU_HIGH_SCORES,
     MENU_LAUNCH_GUIDE,
     MENU_ROOM_ATLAS,
     MENU_ABOUT,
@@ -307,8 +307,8 @@ static void runCommand(unsigned command)
         case MENU_EXIT_TO_TITLE:
             pendingActions |= DISPLAY_ACTION_EXIT_TO_TITLE;
             return;
-        case MENU_RESET_HIGH_SCORES:
-            pendingActions |= DISPLAY_ACTION_RESET_HIGH_SCORES;
+        case MENU_HIGH_SCORES:
+            pendingActions |= DISPLAY_ACTION_HIGH_SCORES;
             return;
         case MENU_SAVE_FILE_ICON:
             if (app_message_box(window, L"Use the Sorcery+ icon for .sorceryplus save files for this Windows user?",
@@ -457,7 +457,7 @@ static HMENU createMenus(void)
     AppendMenuW(file, MF_STRING, MENU_LOAD, L"Load Game\tF9");
     AppendMenuW(file, MF_STRING, MENU_SAVE, L"Save Game\tF5");
     AppendMenuW(file, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(file, MF_STRING, MENU_RESET_HIGH_SCORES, L"Reset High Scores...");
+    AppendMenuW(file, MF_STRING, MENU_HIGH_SCORES, L"High Scores...");
     AppendMenuW(file, MF_STRING, MENU_SAVE_FILE_ICON, L"Enable Save File Icon...");
     AppendMenuW(file, MF_SEPARATOR, 0, NULL);
     AppendMenuW(file, MF_STRING, MENU_CLOSE, L"Close\tAlt+F4");

@@ -15,6 +15,7 @@
 #include "sound_manager.h"
 #include "music.h"
 #include "high_scores.h"
+#include "high_score_dialog.h"
 #include "room_atlas.h"
 #include "system_dialog_icon.h"
 
@@ -755,19 +756,16 @@ static void apply_audio_settings(void) {
     audio_set_levels(settings.sfx_enabled?settings.sfx_volume:0, settings.music_volume, settings.music_enabled);
 }
 
-static void reset_high_scores(void) {
-    if(!display_confirm(L"Restore the original high-score table for this profile? This replaces its saved all-time scores.")) return;
+static bool reset_high_scores(void) {
     wchar_t path[PROFILE_PATH_CAPACITY];
     uint8_t original[HIGH_SCORES_SECTOR_SIZE];
     if(!read_exact("track-39-sector-c9-high-scores.bin",original,sizeof(original))||
-       !profile_data_path(path,high_scores_filename,true)||!high_scores_reset(path,original)) {
-        display_notice(L"Could not reset the high-score table for this profile.",true);
-        return;
-    }
+       !profile_data_path(path,high_scores_filename,true)||!high_scores_reset(path,original)) return false;
     memcpy(scores,original,sizeof(scores));
     memcpy(ram+SORCERY_HIGH_SCORES,scores,HIGH_SCORE_TABLE_SIZE);
     score_write_failed=false;
     if(!player_game_active()) return_to_title();
+    return true;
 }
 
 static void handle_game_actions(unsigned action) {
@@ -777,7 +775,11 @@ static void handle_game_actions(unsigned action) {
     } else if(action&DISPLAY_ACTION_EXIT_TO_TITLE) {
         if(gameplay_active()) return_to_title();
     } else {
-        if(action&DISPLAY_ACTION_RESET_HIGH_SCORES) reset_high_scores();
+        if(action&DISPLAY_ACTION_HIGH_SCORES) {
+            refresh_high_scores();
+            if(!high_score_dialog_show(display_owner(),scores,reset_high_scores))
+                display_notice(L"Could not open High Scores.",true);
+        }
         if(action&DISPLAY_ACTION_SAVE) show_progress_dialog(true);
         if(action&DISPLAY_ACTION_LOAD) show_progress_dialog(false);
     }

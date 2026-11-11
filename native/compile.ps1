@@ -18,7 +18,7 @@ $embedOptions = @(if ($Capture) { '--capture-only' } else {
 if ($LASTEXITCODE -ne 0) { throw 'Asset embedding failed.' }
 
 $sources = @('presentation.c','audio.c','audio_dialog.c','music.c','sound_manager.c','storage.c',
-             'high_scores.c','save_dialog.c','keyboard_dialog.c','help_dialog.c','app_icon.c',
+             'high_scores.c','high_score_dialog.c','save_dialog.c','keyboard_dialog.c','help_dialog.c','app_icon.c',
              'system_dialog_icon.c','room_atlas.c') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 if ($Capture) {
     $entry = Join-Path (Split-Path -Parent $PSScriptRoot) 'map\capture_rooms.c'

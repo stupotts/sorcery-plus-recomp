@@ -1,6 +1,7 @@
 param(
     [string]$Disk = (Join-Path $PSScriptRoot 'game.dsk'),
     [string]$AtlasLanguageDisk,
+    [string]$Output,
     [string]$Python,
     [string]$Node,
     [string]$Zig,
@@ -54,7 +55,6 @@ $work = Join-Path $build ('work-' + [Guid]::NewGuid().ToString('N'))
 $extracted = Join-Path $work 'extracted'
 $recovered = Join-Path $extracted 'recovered'
 $renderer = Join-Path $work 'capture-rooms.exe'
-$game = Join-Path $build 'SorceryPlus.exe'
 $stagedGame = Join-Path $work 'SorceryPlus.exe'
 [void][IO.Directory]::CreateDirectory($work)
 try {
@@ -64,6 +64,12 @@ try {
         Write-Output "Compatible game data. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
         return
     }
+    $game = if ($Output) {
+        $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output)
+    } else {
+        Join-Path (Split-Path -Parent $Disk) 'SorceryPlus.exe'
+    }
+    if ([IO.Path]::GetExtension($game) -ne '.exe') { throw '-Output must name an .exe file.' }
     $Zig = Find-BuildTool $Zig 'zig.exe' '-Zig'
     $atlasOptions = @()
     if ($AtlasLanguageDisk) {
@@ -91,7 +97,18 @@ try {
 
     Write-Host 'Compiling SorceryPlus.exe'
     & (Join-Path $native 'compile.ps1') @compile -Output $stagedGame
-    Move-Item -LiteralPath $stagedGame -Destination $game -Force
+    $destination = [IO.Directory]::CreateDirectory((Split-Path -Parent $game)).FullName
+    $publishFile = Join-Path $destination ('.sorceryplus-' + [Guid]::NewGuid().ToString('N') + '.tmp')
+    try {
+        [IO.File]::Copy($stagedGame, $publishFile)
+        if ([IO.File]::Exists($game)) {
+            [IO.File]::Replace($publishFile, $game, [NullString]::Value)
+        } else {
+            [IO.File]::Move($publishFile, $game)
+        }
+    } finally {
+        if ([IO.File]::Exists($publishFile)) { [IO.File]::Delete($publishFile) }
+    }
 } finally {
     $workItem = Get-Item -LiteralPath $work -ErrorAction SilentlyContinue
     if ($workItem -and $workItem.Parent.FullName -eq $build -and
@@ -101,4 +118,4 @@ try {
     }
 }
 Write-Output "Built $game"
-if ($Launch) { Start-Process -FilePath $game -WorkingDirectory $build }
+if ($Launch) { Start-Process -FilePath $game -WorkingDirectory (Split-Path -Parent $game) }

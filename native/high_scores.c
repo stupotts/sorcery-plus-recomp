@@ -6,13 +6,27 @@
 #include "storage.h"
 
 enum {
-    RECORD_COUNT = 7,
     RECORD_SIZE = 24,
-    SCORE_OFFSET = 21,
+    SCORE_OFFSET = HIGH_SCORE_NAME_LENGTH,
     SCORE_SIZE = 3
 };
 
-_Static_assert(RECORD_COUNT * RECORD_SIZE == HIGH_SCORE_TABLE_SIZE, "Score table size mismatch");
+_Static_assert(HIGH_SCORE_COUNT * RECORD_SIZE == HIGH_SCORE_TABLE_SIZE, "Score table size mismatch");
+
+HighScoreEntry high_scores_entry(const uint8_t *table, unsigned index)
+{
+    const uint8_t *record = table + index * RECORD_SIZE;
+    HighScoreEntry entry = {0};
+    size_t length = HIGH_SCORE_NAME_LENGTH;
+    while (length && (record[length - 1] == '.' || record[length - 1] == ' ')) --length;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned character = record[i] & 0x7f;
+        entry.name[i] = character >= 32 && character <= 126 ? (wchar_t)character : L'?';
+    }
+    for (size_t i = SCORE_OFFSET; i < RECORD_SIZE; ++i)
+        entry.points = entry.points * 100 + (record[i] >> 4) * 10 + (record[i] & 15);
+    return entry;
+}
 
 static int compare_score(const uint8_t *first, const uint8_t *second)
 {
@@ -24,7 +38,7 @@ static bool valid_table(const uint8_t *table)
     if (!table) {
         return false;
     }
-    for (size_t i = 0; i < RECORD_COUNT; ++i) {
+    for (size_t i = 0; i < HIGH_SCORE_COUNT; ++i) {
         const uint8_t *record = table + i * RECORD_SIZE;
         for (size_t j = SCORE_OFFSET; j < RECORD_SIZE; ++j) {
             if ((record[j] & 15u) > 9 || (record[j] >> 4) > 9) {
@@ -49,18 +63,18 @@ static unsigned record_count(const uint8_t *table, size_t count, const uint8_t *
 
 static void merge_additions(uint8_t *target, const uint8_t *baseline, const uint8_t *incoming)
 {
-    for (size_t i = 0; i < RECORD_COUNT; ++i) {
+    for (size_t i = 0; i < HIGH_SCORE_COUNT; ++i) {
         const uint8_t *record = incoming + i * RECORD_SIZE;
-        if (record_count(incoming, i + 1, record) <= record_count(baseline, RECORD_COUNT, record)) {
+        if (record_count(incoming, i + 1, record) <= record_count(baseline, HIGH_SCORE_COUNT, record)) {
             continue;
         }
         size_t rank = 0;
-        while (rank < RECORD_COUNT && compare_score(target + rank * RECORD_SIZE, record) >= 0) {
+        while (rank < HIGH_SCORE_COUNT && compare_score(target + rank * RECORD_SIZE, record) >= 0) {
             ++rank;
         }
-        if (rank < RECORD_COUNT) {
+        if (rank < HIGH_SCORE_COUNT) {
             uint8_t *position = target + rank * RECORD_SIZE;
-            memmove(position + RECORD_SIZE, position, (RECORD_COUNT - rank - 1) * RECORD_SIZE);
+            memmove(position + RECORD_SIZE, position, (HIGH_SCORE_COUNT - rank - 1) * RECORD_SIZE);
             memcpy(position, record, RECORD_SIZE);
         }
     }

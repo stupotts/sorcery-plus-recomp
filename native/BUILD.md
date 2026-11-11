@@ -6,7 +6,7 @@ Follow the [README](../README.md) to supply a compatible CPC disk image and run 
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -Disk 'C:\Games\Sorcery Plus (UK) (1985).dsk' -Python 'C:\Tools\python.exe' -Node 'C:\Tools\node.exe' -Zig 'C:\Tools\zig.exe'
 ```
 
-The build extracts the disk into a temporary work folder and identifies the UK or French edition from the decoded code hash. `editions.py` supplies the matching Z80 addresses, save format, and atlas text locations. The build translates the original routines into C and compiles a console capture helper that draws rooms using that disk's renderer and tiles. The atlas scripts generate the interactive pages and verify the door links before the final Windows GUI build embeds the generated data. The final EXE is written to `native\build\SorceryPlus.exe` after successful compilation.
+The build extracts the disk into a temporary work folder and identifies the UK or French edition from the decoded code hash. `editions.py` supplies the matching Z80 addresses, save format, and atlas text locations. The build translates the original routines into C and compiles a console capture helper that draws rooms using that disk's renderer and tiles. The atlas scripts generate the interactive pages and verify the door links before the final Windows GUI build embeds the generated data. After compilation, the build puts `SorceryPlus.exe` next to the primary disk image. Pass `-Output` to set a different path.
 
 An existing EXE must be closed before it can be replaced. If a build fails, check the first error in the terminal. The original disk image is opened for reading.
 

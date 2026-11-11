@@ -4,7 +4,7 @@
 
 Sorcery+ is a two-chapter adventure where you fly between rooms, rescue captured sorcerers, and find the right objects to defeat monsters and open doors. This project translates the game's original Z80 machine code into C at build time. The Windows program handles display, audio, input, saves, and the interactive room atlas.
 
-[Compatible disk](#compatible-disk) · [Build and play](#build-and-play) · [Controls](#controls) · [Windows menus](#windows-menus) · [Room atlas](#room-atlas) · [Source layout](#source-layout)
+[Compatible disk](#compatible-disk) · [Build and play](#build-and-play) · [Build options](#build-options) · [Controls](#controls) · [Windows menus](#windows-menus) · [Room atlas](#room-atlas) · [Source layout](#source-layout)
 
 ### Gameplay screenshots
 
@@ -44,13 +44,28 @@ The UK reference can be identified without the build tools by its SHA-256, `f5de
    powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -Disk 'C:\Games\Sorcery Plus (UK) (1985).dsk' -Launch
    ```
 
-3. Wait for the title screen and press **Z**. The EXE is written to `native\build\SorceryPlus.exe`. It contains the game data and atlas generated from your disk, so you can run your local build from a writable folder on a compatible PC. The build reads your disk image without changing it.
+3. Wait for the title screen and press **Z**. The build puts `SorceryPlus.exe` beside the primary `.dsk` file. It contains the game data and atlas generated from your disk and can be run from a writable folder on a compatible PC. The disk image stays intact.
 
 In Visual Studio Code, open [`SorceryPlus.code-workspace`](SorceryPlus.code-workspace). With `game.dsk` in the project folder, use **Ctrl+Shift+B** to build or **Terminal → Run Task → Build and run Sorcery+** to build and launch. To use a disk elsewhere, run the PowerShell command above from the VS Code terminal.
 
-If a tool is outside `PATH`, pass its full path with `-Python`, `-Node`, or `-Zig`. The [build notes](native/BUILD.md) describe the build stages and diagnostics.
-
 The UK build reached Outside the Castle in a 400-frame Windows 11 x64 gameplay run and matched the original v2.7 graphics and audio checksums. The build verifies all 75 room images and 97 map connections for either edition.
+
+## Build options
+
+| Option | What it does |
+| --- | --- |
+| `-Disk <file.dsk>` | Select the primary CPC disk image. Defaults to `game.dsk` beside `Build.ps1`. |
+| `-AtlasLanguageDisk <file.dsk>` | Include room and object names from a compatible disk of the other language. |
+| `-Output <file.exe>` | Choose the executable's name and location. Defaults to `SorceryPlus.exe` beside the primary disk. Use different output paths to keep builds for disks in the same folder. |
+| `-Python <python.exe>` | Use a specific Python executable. Defaults to the installed Python on `PATH`. |
+| `-Node <node.exe>` | Use a specific Node.js executable. Defaults to Node.js on `PATH`. |
+| `-Zig <zig.exe>` | Use a specific Zig executable. Defaults to Zig on `PATH`. |
+| `-Optimize <0–3>` | Choose the compiler optimization level. The default is `2`. |
+| `-CheckDisk` | Check the primary disk and stop before compilation. |
+| `-TryOtherDisk` | Try an image with a different hash without the confirmation prompt. The game data still goes through compatibility checks. |
+| `-Launch` | Open the game after a successful build. |
+
+Saves and preferences go in `profiles` beside the EXE. To keep using an existing profile folder, build to its current game folder with `-Output` or copy the profile folder beside the new EXE. See the [build notes](native/BUILD.md) for details.
 
 ## Controls
 
@@ -69,18 +84,20 @@ XInput controllers can use the D-pad or left stick, **A** for fire, and **Start*
 
 | File | Settings | Help |
 | --- | --- | --- |
-| ![File menu showing load, save, high-score reset, close, and exit to title](docs/screenshots/file-menu.png) | ![Settings menu showing Display, Keyboard, and Audio](docs/screenshots/settings-menu.png) | ![Help menu showing Launch Guide, Room Atlas, and About](docs/screenshots/help-menu.png) |
+| ![File menu showing load, save, high scores, close, and exit to title](docs/screenshots/file-menu.png) | ![Settings menu showing Display, Keyboard, and Audio](docs/screenshots/settings-menu.png) | ![Help menu showing Launch Guide, Room Atlas, and About](docs/screenshots/help-menu.png) |
 
 | Menu option | What it does |
 | --- | --- |
 | **File → Load Game / Save Game** | Load a `.sorceryplus` or `.sav` file, or save your progress under a filename of your choice. New names default to `.sorceryplus`. |
 | **File → Enable Save File Icon** | Register the game icon for `.sorceryplus` files in Windows Explorer for your Windows account. Run it again if you move the EXE. |
-| **File → Reset High Scores** | Restore the original high-score table for the current profile after confirmation. |
+| **File → High Scores…** | View the current profile's seven all-time scores. Use **Reset…** in the window to restore the table from the disk used for this build. |
 | **File → Close / Exit to Title** | **Close** quits the program and offers to save a game in progress. **Exit to Title** ends the current game and keeps the program open. |
 | **Settings → Display** | Toggle borderless fullscreen, choose sharp pixels or smooth scaling, and switch between classic 4:3 and wide 8:5 framing. |
 | **Settings → Keyboard** | Change the keys for movement, fire, and pause. |
 | **Settings → Audio** | Set sound effects and gameplay music independently. The music volume applies to both gameplay and the title theme. The music switch applies during gameplay only. |
 | **Help → Launch Guide / Room Atlas / About** | Read the built-in guide, open the atlas in your browser, or see the cover art, version, and program credit. |
+
+![The all-time High Scores window showing ranks, names, scores, and the Reset button](docs/screenshots/high-scores.png)
 
 ![Audio Settings with independent sound-effects and music controls](docs/screenshots/audio-settings.png)
 

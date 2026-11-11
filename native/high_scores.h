@@ -6,9 +6,18 @@
 #include <stdint.h>
 
 enum {
+    HIGH_SCORE_COUNT = 7,
+    HIGH_SCORE_NAME_LENGTH = 21,
     HIGH_SCORE_TABLE_SIZE = 168,
     HIGH_SCORES_SECTOR_SIZE = 512
 };
+
+typedef struct {
+    wchar_t name[HIGH_SCORE_NAME_LENGTH + 1];
+    unsigned points;
+} HighScoreEntry;
+
+HighScoreEntry high_scores_entry(const uint8_t *table, unsigned index);
 
 /* Read a valid ledger into the score area, leaving the sector tail intact. */
 bool high_scores_load(const wchar_t *path, uint8_t sector[HIGH_SCORES_SECTOR_SIZE]);
