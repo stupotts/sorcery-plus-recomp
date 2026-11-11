@@ -1,0 +1,13 @@
+*.[dD][sS][kK]
+*.[eE][xX][eE]
+/tools.local.psd1
+/native/build/
+/native/translated.inc
+/map/deliverable/
+/map/rooms/
+/map/atlas-data.json
+/map/preview-sprites.json
+/.zig-cache/
+/zig-cache/
+/profiles/
+**/__pycache__/
