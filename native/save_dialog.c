@@ -2,16 +2,19 @@
 #define COBJMACROS
 #include <windows.h>
 #include <objbase.h>
+#include <shlobj.h>
 #include <shobjidl.h>
+#include <strsafe.h>
 #include <wchar.h>
 
 #include "save_dialog.h"
+#include "resource.h"
 #include "system_dialog_icon.h"
 
 static HRESULT configure_dialog(IFileDialog *dialog, bool saving)
 {
     static const COMDLG_FILTERSPEC types[] = {
-        {L"Sorcery+ save files (*.sav)", L"*.sav"}
+        {L"Sorcery+ save files (*.sorceryplus; *.sav)", L"*.sorceryplus;*.sav"}
     };
     FILEOPENDIALOGOPTIONS options;
     HRESULT result = IFileDialog_GetOptions(dialog, &options);
@@ -26,13 +29,20 @@ static HRESULT configure_dialog(IFileDialog *dialog, bool saving)
         result = IFileDialog_SetFileTypes(dialog, ARRAYSIZE(types), types);
     }
     if (SUCCEEDED(result)) {
-        result = IFileDialog_SetDefaultExtension(dialog, L"sav");
+        result = IFileDialog_SetDefaultExtension(dialog, L"sorceryplus");
     }
     if (SUCCEEDED(result)) {
         result = IFileDialog_SetTitle(dialog, saving ? L"Save Sorcery+ progress"
                                                     : L"Load Sorcery+ progress");
     }
     return result;
+}
+
+static bool has_extension(const wchar_t *path, size_t length, const wchar_t *extension)
+{
+    size_t suffix = wcslen(extension);
+    return length >= suffix &&
+        CompareStringOrdinal(path + length - suffix, (int)suffix, extension, (int)suffix, TRUE) == CSTR_EQUAL;
 }
 
 static SaveDialogResult choose_path(IFileDialog *dialog, HWND owner,
@@ -60,8 +70,8 @@ static SaveDialogResult choose_path(IFileDialog *dialog, HWND owner,
             return SAVE_DIALOG_ERROR;
         }
         size_t length = wcslen(chosen);
-        bool is_save_file = length >= 4 &&
-            CompareStringOrdinal(chosen + length - 4, 4, L".sav", 4, TRUE) == CSTR_EQUAL;
+        bool is_save_file = has_extension(chosen, length, L".sorceryplus") ||
+                            has_extension(chosen, length, L".sav");
         if (is_save_file && length < capacity) {
             wmemcpy(path, chosen, length + 1);
         }
@@ -69,7 +79,7 @@ static SaveDialogResult choose_path(IFileDialog *dialog, HWND owner,
         if (is_save_file) {
             return length < capacity ? SAVE_DIALOG_SELECTED : SAVE_DIALOG_ERROR;
         }
-        app_message_box(owner, L"Choose a file with the .sav extension.", L"Sorcery+",
+        app_message_box(owner, L"Choose a .sorceryplus or .sav file.", L"Sorcery+",
                         MB_OK | MB_ICONINFORMATION);
     }
 }
@@ -101,4 +111,31 @@ SaveDialogResult save_dialog_choose(HWND owner, const wchar_t *initial_directory
     }
     CoUninitialize();
     return choice;
+}
+
+static LSTATUS set_file_type_value(const wchar_t *key, const wchar_t *value)
+{
+    return RegSetKeyValueW(HKEY_CURRENT_USER, key, NULL, REG_SZ, value,
+                           (DWORD)((wcslen(value) + 1) * sizeof(*value)));
+}
+
+bool save_dialog_register_icon(void)
+{
+    static const wchar_t extension[] = L"Software\\Classes\\.sorceryplus";
+    static const wchar_t file_type[] = L"StuPot.SorceryPlus.Save";
+    wchar_t existing[128] = {0};
+    DWORD size = sizeof(existing);
+    LSTATUS status = RegGetValueW(HKEY_CURRENT_USER, extension, NULL, RRF_RT_REG_SZ, NULL, existing, &size);
+    if ((status == ERROR_SUCCESS && *existing && _wcsicmp(existing, file_type)) ||
+        (status != ERROR_SUCCESS && status != ERROR_FILE_NOT_FOUND)) return false;
+
+    wchar_t executable[1024], icon[1056];
+    DWORD length = GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable));
+    if (!length || length >= ARRAYSIZE(executable) ||
+        FAILED(StringCchPrintfW(icon, ARRAYSIZE(icon), L"\"%ls\",-%d", executable, IDI_SORCERY_PLUS))) return false;
+    if (set_file_type_value(L"Software\\Classes\\StuPot.SorceryPlus.Save", L"Sorcery+ saved game") != ERROR_SUCCESS ||
+        set_file_type_value(L"Software\\Classes\\StuPot.SorceryPlus.Save\\DefaultIcon", icon) != ERROR_SUCCESS ||
+        set_file_type_value(extension, file_type) != ERROR_SUCCESS) return false;
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
+    return true;
 }

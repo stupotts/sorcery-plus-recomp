@@ -50,9 +50,14 @@ time it opens.
 Saves and preferences
 ---------------------
 File > Save Game and F5 open Save As, where you can name a save and choose its
-folder. Choose Cancel to keep an existing file. F9 lets you select a saved
-position even from the title. The dialogs start in profiles\default. An
-existing progress.sav can be selected there.
+folder. New names default to .sorceryplus. F9 opens .sorceryplus and older
+.sav files, even from the title. The dialogs start in profiles\default.
+Choose Cancel to keep an existing file.
+
+File > Enable Save File Icon registers the game icon for .sorceryplus
+files in Windows Explorer for your Windows account. If you move the EXE,
+enable it again from the new location. To use the icon for an older
+Sorcery+ save, rename a copy from .sav to .sorceryplus and load it with F9.
 
 When you enter a qualifying high score, the game saves the all-time table
 in highscores.dat inside the current profile. It loads that table again on

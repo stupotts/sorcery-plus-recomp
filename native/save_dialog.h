@@ -11,8 +11,9 @@ typedef enum {
     SAVE_DIALOG_ERROR
 } SaveDialogResult;
 
-/* Leave path unchanged unless the user selects a .sav file. */
+/* Leave path unchanged unless the user selects a supported save file. */
 SaveDialogResult save_dialog_choose(HWND owner, const wchar_t *initial_directory,
                                    bool saving, wchar_t *path, size_t capacity);
+bool save_dialog_register_icon(void);
 
 #endif

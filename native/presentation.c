@@ -10,6 +10,7 @@
 #include "help_dialog.h"
 #include "keyboard_dialog.h"
 #include "room_atlas.h"
+#include "save_dialog.h"
 #include "system_dialog_icon.h"
 
 enum {
@@ -34,7 +35,8 @@ enum {
     MENU_RESET_HIGH_SCORES,
     MENU_LAUNCH_GUIDE,
     MENU_ROOM_ATLAS,
-    MENU_ABOUT
+    MENU_ABOUT,
+    MENU_SAVE_FILE_ICON
 };
 
 enum { ACTION_UP, ACTION_DOWN, ACTION_LEFT, ACTION_RIGHT, ACTION_FIRE, ACTION_PAUSE, ACTION_COUNT };
@@ -306,6 +308,17 @@ static void runCommand(unsigned command)
         case MENU_RESET_HIGH_SCORES:
             pendingActions |= DISPLAY_ACTION_RESET_HIGH_SCORES;
             return;
+        case MENU_SAVE_FILE_ICON:
+            if (app_message_box(window, L"Use the Sorcery+ icon for .sorceryplus save files for this Windows user?",
+                                L"Sorcery+", MB_YESNO | MB_ICONQUESTION) == IDYES) {
+                bool registered = save_dialog_register_icon();
+                app_message_box(window, registered
+                    ? L"Windows can now show the Sorcery+ icon for .sorceryplus saves."
+                    : L"Windows could not register the Sorcery+ save icon.", L"Sorcery+",
+                    MB_OK | (registered ? MB_ICONINFORMATION : MB_ICONWARNING));
+            }
+            suppressDialogKey();
+            return;
         case MENU_LAUNCH_GUIDE:
             if (!help_dialog_show(window)) display_notice(L"Could not open the launch guide.", true);
             suppressDialogKey();
@@ -443,6 +456,7 @@ static HMENU createMenus(void)
     AppendMenuW(file, MF_STRING, MENU_SAVE, L"Save Game\tF5");
     AppendMenuW(file, MF_SEPARATOR, 0, NULL);
     AppendMenuW(file, MF_STRING, MENU_RESET_HIGH_SCORES, L"Reset High Scores...");
+    AppendMenuW(file, MF_STRING, MENU_SAVE_FILE_ICON, L"Enable Save File Icon...");
     AppendMenuW(file, MF_SEPARATOR, 0, NULL);
     AppendMenuW(file, MF_STRING, MENU_CLOSE, L"Close\tAlt+F4");
     AppendMenuW(file, MF_STRING, MENU_EXIT_TO_TITLE, L"Exit to Title\tCtrl+T");

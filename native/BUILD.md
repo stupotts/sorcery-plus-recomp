@@ -10,6 +10,8 @@ The build extracts the disk into a temporary work folder and identifies the UK o
 
 An existing EXE must be closed before it can be replaced. If a build fails, check the first error in the terminal. The original disk image is opened for reading.
 
+The build embeds the icon in `native/sorcerer.ico` and the About artwork in `native/about-art.bmp`. The game assets still come from the disk image you supply.
+
 For an independent extraction, pass the disk path and a new destination folder to the extractor. Keep the resulting files outside the source repository.
 
 ```powershell

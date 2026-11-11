@@ -31,5 +31,5 @@ if ($Capture) {
 }
 & $Zig cc -target x86_64-windows-gnu "-Wl,--subsystem,$subsystem" "-O$Optimize" `
     -I $Work -I $PSScriptRoot $entry @sources $embeddedSource @resources `
-    -luser32 -lgdi32 -lwinmm -lole32 -lshell32 -luuid -lcomctl32 -lws2_32 -lbcrypt -o $Output
+    -luser32 -lgdi32 -lwinmm -lole32 -lshell32 -luuid -lcomctl32 -lws2_32 -lbcrypt -ladvapi32 -o $Output
 if ($LASTEXITCODE -ne 0) { throw "Zig failed to compile $Output." }

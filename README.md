@@ -73,13 +73,14 @@ XInput controllers can use the D-pad or left stick, **A** for fire, and **Start*
 
 | Menu option | What it does |
 | --- | --- |
-| **File → Load Game / Save Game** | Choose a saved game or save your current progress under a filename of your choice. |
+| **File → Load Game / Save Game** | Load a `.sorceryplus` or `.sav` file, or save your progress under a filename of your choice. New names default to `.sorceryplus`. |
+| **File → Enable Save File Icon** | Register the game icon for `.sorceryplus` files in Windows Explorer for your Windows account. Run it again if you move the EXE. |
 | **File → Reset High Scores** | Restore the original high-score table for the current profile after confirmation. |
 | **File → Close / Exit to Title** | **Close** quits the program and offers to save a game in progress. **Exit to Title** ends the current game and keeps the program open. |
 | **Settings → Display** | Toggle borderless fullscreen, choose sharp pixels or smooth scaling, and switch between classic 4:3 and wide 8:5 framing. |
 | **Settings → Keyboard** | Change the keys for movement, fire, and pause. |
 | **Settings → Audio** | Set sound effects and gameplay music independently. The music volume applies to both gameplay and the title theme. The music switch applies during gameplay only. |
-| **Help → Launch Guide / Room Atlas / About** | Read the built-in guide, open the atlas in your browser, or see the version and program credit. |
+| **Help → Launch Guide / Room Atlas / About** | Read the built-in guide, open the atlas in your browser, or see the cover art, version, and program credit. |
 
 ![Audio Settings with independent sound-effects and music controls](docs/screenshots/audio-settings.png)
 
@@ -136,6 +137,6 @@ The gold dashed trail shows the locked route to Gatwick. The door list names the
 
 The supplied CPC edition credits Virgin Games, 1985. The Windows recompilation and room atlas are by **StuPot**.
 
-This independent project documents the recompilation for educational and preservation purposes. The original game code, graphics, music, and artwork belong to their respective rights holders. This source edition contains the build tools and documentation. The game data is generated locally from the disk image you provide.
+This independent project documents the recompilation for educational and preservation purposes. The original game code, graphics, music, and artwork belong to their respective rights holders. This source edition includes the build tools, documentation, Windows icon, and About artwork. The game data is generated locally from the disk image you provide.
 
 The software is provided “as is,” without warranty. To the extent permitted by applicable law, the project maintainer disclaims liability for loss or damage arising from its use.

@@ -83,14 +83,45 @@ bool help_dialog_show(HWND owner)
     return shown;
 }
 
+static void draw_about_art(const DRAWITEMSTRUCT *draw, HBITMAP art)
+{
+    BITMAP bitmap;
+    if (!GetObjectW(art, sizeof bitmap, &bitmap) || bitmap.bmWidth <= 0 || bitmap.bmHeight <= 0) return;
+    HDC source = CreateCompatibleDC(draw->hDC);
+    if (!source) return;
+    HGDIOBJ previous = SelectObject(source, art);
+    int available_width = draw->rcItem.right - draw->rcItem.left;
+    int available_height = draw->rcItem.bottom - draw->rcItem.top;
+    int height = available_height;
+    int width = MulDiv(height, bitmap.bmWidth, bitmap.bmHeight);
+    if (width > available_width) {
+        width = available_width;
+        height = MulDiv(width, bitmap.bmHeight, bitmap.bmWidth);
+    }
+    FillRect(draw->hDC, &draw->rcItem, GetSysColorBrush(COLOR_BTNFACE));
+    SetStretchBltMode(draw->hDC, HALFTONE);
+    SetBrushOrgEx(draw->hDC, 0, 0, NULL);
+    StretchBlt(draw->hDC, draw->rcItem.left + (available_width - width) / 2,
+               draw->rcItem.top + (available_height - height) / 2, width, height,
+               source, 0, 0, bitmap.bmWidth, bitmap.bmHeight, SRCCOPY);
+    SelectObject(source, previous);
+    DeleteDC(source);
+}
+
 static INT_PTR CALLBACK about_proc(HWND dialog, UINT message, WPARAM wparam, LPARAM lparam)
 {
-    (void)lparam;
     switch (message) {
     case WM_INITDIALOG:
         app_icon_set(dialog);
+        SetWindowLongPtrW(dialog, DWLP_USER, lparam);
         SetDlgItemTextW(dialog, IDC_ABOUT_VERSION, SORCERY_VERSION_LABEL);
         return TRUE;
+    case WM_DRAWITEM:
+        if (wparam == IDC_ABOUT_ART) {
+            draw_about_art((const DRAWITEMSTRUCT *)lparam, (HBITMAP)GetWindowLongPtrW(dialog, DWLP_USER));
+            return TRUE;
+        }
+        break;
     case WM_COMMAND:
         if (LOWORD(wparam) != IDOK && LOWORD(wparam) != IDCANCEL) break;
         /* Fall through. */
@@ -104,5 +135,9 @@ static INT_PTR CALLBACK about_proc(HWND dialog, UINT message, WPARAM wparam, LPA
 bool about_dialog_show(HWND owner)
 {
     HINSTANCE instance = GetModuleHandleW(NULL);
-    return DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_ABOUT), owner, about_proc, 0) == IDOK;
+    HBITMAP art = LoadImageW(instance, MAKEINTRESOURCEW(IDB_ABOUT_ART), IMAGE_BITMAP, 0, 0, LR_CREATEDIBSECTION);
+    if (!art) return false;
+    bool shown = DialogBoxParamW(instance, MAKEINTRESOURCEW(IDD_ABOUT), owner, about_proc, (LPARAM)art) == IDOK;
+    DeleteObject(art);
+    return shown;
 }
