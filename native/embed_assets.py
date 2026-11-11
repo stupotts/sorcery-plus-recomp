@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 
@@ -32,7 +33,7 @@ def write_bytes(file, name, data):
     file.write("};\n\n")
 
 
-def generate(assets, guide, output, atlas_dir, edition):
+def generate(assets, guide, output, atlas_dir, edition, room_data):
     blob = bytearray()
     entries = []
     sizes = {**ASSET_SIZES, "CODE-decoded-7000.bin": edition["code_size"], "SMESSC.BIN": edition["message_size"]}
@@ -47,6 +48,7 @@ def generate(assets, guide, output, atlas_dir, edition):
     guide_bytes = guide_text.replace("\n", "\r\n").encode("utf-8")
     if not guide_text.strip() or "\0" in guide_text or len(guide_bytes) > MAX_GUIDE_BYTES:
         raise ValueError(f"{guide}: expected 1–{MAX_GUIDE_BYTES} bytes of UTF-8 launch guide text without NULs")
+    rooms = json.loads(room_data.read_text(encoding="utf-8"))["rooms"] if room_data else []
 
     with output.open("w", encoding="ascii", newline="\n") as file:
         file.write("/* Generated from the local Sorcery+ disk assets. Do not edit. */\n")
@@ -58,6 +60,15 @@ def generate(assets, guide, output, atlas_dir, edition):
             if atlas_dir and (not data.startswith(b"<!doctype html>") or len(data) > 2_000_000):
                 raise ValueError(f"{page}: expected a generated offline HTML page")
             write_bytes(file, name, data)
+        file.write("static const wchar_t *const room_labels[] = {\n")
+        for room in rooms:
+            # Match the room panel's title casing and use its public room number.
+            title = re.sub(r"(^|[ .-])([a-z])", lambda match: match[0].upper(), room["title"].lower())
+            label = f"#{room['number']:02d} - {title}"
+            file.write(f"    [0x{room['id']}] = L{json.dumps(label)},\n")
+        if not rooms:
+            file.write("    NULL,\n")
+        file.write("};\n\n")
         file.write("static const struct {\n    const char *name;\n    size_t offset, length;\n} assets[] = {\n")
         file.writelines(entries)
         file.write("""};
@@ -91,6 +102,11 @@ const unsigned char *embedded_atlas_page(bool guide, size_t *size)
     *size = guide ? sizeof(room_guide) : sizeof(room_atlas);
     return guide ? room_guide : room_atlas;
 }
+
+const wchar_t *embedded_room_label(unsigned room)
+{
+    return room < sizeof(room_labels) / sizeof(room_labels[0]) ? room_labels[room] : NULL;
+}
 """)
 
 
@@ -103,9 +119,12 @@ if __name__ == "__main__":
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--atlas-dir", type=Path)
     mode.add_argument("--capture-only", action="store_true")
+    parser.add_argument("--room-data", type=Path)
     args = parser.parse_args()
+    if args.atlas_dir and not args.room_data:
+        parser.error("--room-data is required when embedding the atlas")
     try:
         edition = json.loads(args.edition_info.read_text(encoding="ascii"))
-        generate(args.assets, args.guide, args.output, args.atlas_dir, edition)
+        generate(args.assets, args.guide, args.output, args.atlas_dir, edition, args.room_data)
     except (OSError, ValueError) as error:
         parser.error(str(error))

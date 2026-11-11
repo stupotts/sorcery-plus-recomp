@@ -545,7 +545,7 @@ static void restore_snapshot(const Snapshot *snapshot) {
 
 static bool gameplay_active(void) { return word(SORCERY_FRAME_TABLE_POINTER)==SORCERY_GAMEPLAY_FRAME_TABLE; }
 static bool player_game_active(void) { return gameplay_active()&&!(rd(0x6851)&0x80); }
-static void update_live_atlas(bool force);
+static void update_room_state(bool force);
 
 static void return_to_title(void) {
     // The clean start has the original code and overlays, before any quest changes.
@@ -554,6 +554,7 @@ static void return_to_title(void) {
     restore_snapshot(&title_start);
     memcpy(scores,current_scores,sizeof(scores));
     memset(headless_keys,0xff,sizeof(headless_keys));
+    update_room_state(false);
 }
 
 static void finish_game_frame(void) {
@@ -613,16 +614,18 @@ static bool profile_data_path(wchar_t *path,const wchar_t *filename,bool create)
         swprintf(path,PROFILE_PATH_CAPACITY,L"%lsprofiles\\%ls\\%ls",base_path,profile_name,filename)>=0;
 }
 
-static void update_live_atlas(bool force) {
+static void update_room_state(bool force) {
     static bool active;
     static uint64_t next_update;
     static wchar_t path[PROFILE_PATH_CAPACITY];
     if(headless) return;
     if(!player_game_active()) {
+        display_set_room_title(-1);
         if(active) room_atlas_clear();
         active=false;
         return;
     }
+    display_set_room_title(rd(SORCERY_ROOM_NUMBER));
     if(!active||force) {
         if(!profile_data_path(path,L"Atlas-Live.json",true)) path[0]=L'\0';
         active=true;
@@ -703,7 +706,7 @@ static bool load_progress_from(const wchar_t *path) {
         sound_envelope(true,index,ram+0xa700+16*index);
     }
     report_progress("Loaded");
-    update_live_atlas(true);
+    update_room_state(true);
     return true;
 }
 static bool load_progress(void) {
@@ -788,7 +791,7 @@ static void new_frame(void) {
     else music_stop();
     sound_frame();
     if(!gameplay_active()) completed_game_frame=false;
-    if(!player_game_active()) update_live_atlas(false);
+    if(!player_game_active()) update_room_state(false);
     flyback_pending=true;
     if(headless||injected_start||move_begin) {
         memset(headless_keys,0xff,sizeof(headless_keys));
@@ -831,7 +834,7 @@ static void game_step(void) {
     // $74B9 follows the gameplay update's sprite and HUD writes.
     const bool room_ready = pc==SORCERY_ROOM_READY||(pc==SORCERY_GAME_LOOP&&!completed_game_frame)||pc==SORCERY_DOOR_DESTINATION;
     if(room_ready||door_frame_finished(pc)) finish_game_frame();
-    if(room_ready) update_live_atlas(false);
+    if(room_ready) update_room_state(false);
     last[last_index++&31]=pc;
     if(trace&&steps<70) fprintf(stderr,"$%04X AF=%04X BC=%04X DE=%04X HL=%04X\n",pc,AF,BC,DE,HL);
     ++steps;

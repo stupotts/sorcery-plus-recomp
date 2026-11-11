@@ -17,6 +17,7 @@ enum {
 };
 
 bool display_open(void);
+void display_set_room_title(int room);
 HWND display_owner(void);
 bool display_pump(void);
 void display_frame(const uint8_t *vram, const uint8_t *inks,

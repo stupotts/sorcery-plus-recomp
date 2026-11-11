@@ -9,7 +9,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $embeddedSource = Join-Path $Work 'embedded-data.c'
-$embedOptions = @(if ($Capture) { '--capture-only' } else { '--atlas-dir'; Join-Path $Work 'deliverable' })
+$embedOptions = @(if ($Capture) { '--capture-only' } else {
+    '--atlas-dir'; Join-Path $Work 'deliverable'
+    '--room-data'; Join-Path $Work 'atlas-data.json'
+})
 & $Python (Join-Path $PSScriptRoot 'embed_assets.py') (Join-Path $Work 'assets') `
     (Join-Path $PSScriptRoot 'LAUNCH.txt') $embeddedSource --edition-info (Join-Path $Work 'edition.json') @embedOptions
 if ($LASTEXITCODE -ne 0) { throw 'Asset embedding failed.' }

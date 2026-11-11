@@ -7,6 +7,7 @@
 #include "presentation.h"
 #include "app_icon.h"
 #include "audio_dialog.h"
+#include "embedded_assets.h"
 #include "help_dialog.h"
 #include "keyboard_dialog.h"
 #include "room_atlas.h"
@@ -53,6 +54,7 @@ static const WCHAR *const bindingNames[ACTION_COUNT] = {
 };
 
 static HWND window;
+static int titledRoom = -1;
 static HMENU windowMenu;
 static HMENU displayMenu;
 static WINDOWPLACEMENT windowedPlacement = { .length = sizeof(WINDOWPLACEMENT) };
@@ -559,6 +561,7 @@ bool display_open(void)
         windowMenu = NULL;
         return false;
     }
+    titledRoom = -1;
     controllerLibrary = LoadLibraryExW(L"xinput1_4.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
     if (controllerLibrary) {
         getControllerState = (XInputStateFunction)(void *)GetProcAddress(controllerLibrary, "XInputGetState");
@@ -567,6 +570,18 @@ bool display_open(void)
     ShowWindow(window, SW_SHOW);
     if (startFullscreen) toggleFullscreen();
     return true;
+}
+
+void display_set_room_title(int room)
+{
+    if (!window || room == titledRoom) return;
+    const wchar_t *label = room < 0 ? NULL : embedded_room_label((unsigned)room);
+    wchar_t title[256];
+    if (label && SUCCEEDED(StringCchPrintfW(title, ARRAYSIZE(title), L"%ls       (%ls)", windowTitle, label))) {
+        if (SetWindowTextW(window, title)) titledRoom = room;
+    } else if (SetWindowTextW(window, windowTitle)) {
+        titledRoom = -1;
+    }
 }
 
 bool display_pump(void)

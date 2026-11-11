@@ -10,7 +10,7 @@ Sorcery+ is a two-chapter adventure where you fly between rooms, rescue captured
 
 | Title screen | Outside the Castle |
 | --- | --- |
-| ![Sorcery+ title screen in the native Windows build](docs/screenshots/title.png) | ![The player flying outside the castle during gameplay](docs/screenshots/gameplay.png) |
+| ![Sorcery+ title screen in the native Windows build](docs/screenshots/title.png) | ![Gameplay outside the castle with atlas room #06 in the Windows title bar](docs/screenshots/gameplay.png) |
 
 ## Compatible disk
 
@@ -89,6 +89,8 @@ Preferences, saves, high scores, and atlas notes are stored under `profiles` bes
 ## Room atlas
 
 Choose **Help → Room Atlas** to explore all 75 rooms in your browser. Keep the game open while using the atlas.
+
+During gameplay, the Windows title bar shows the current room's atlas number and its name in the game's language. For example, the UK build shows **Sorcery+ (#34 - You Are At The Tunnel Mouth)**.
 
 Room and item names come from the disk used to build the game. To include both languages, pass a compatible disk from the other edition with `-AtlasLanguageDisk`:
 
