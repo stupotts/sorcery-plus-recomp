@@ -39,7 +39,10 @@ def item_name(names, sprite):
     name = names.get(sprite)
     if not name:
         return f"Unidentified object (sprite {sprite:02X})"
-    return name.removeprefix("CARRYING A ").removeprefix("WITH A ")
+    for prefix in ("CARRYING A ", "WITH A ", "AVEC UN ", "AVEC UNE ", "AVEC DES "):
+        if name.startswith(prefix):
+            return name[len(prefix):]
+    return name
 
 
 def chapter_for(room):
@@ -54,18 +57,19 @@ def door_id(room, slot):
     return f"{hex_id(room)}-{chr(65 + slot)}"
 
 
-def extract(code, locations):
+def extract(code, locations, edition):
     def at(start, end):
         return code[start - 0x7000:end - 0x7000]
 
-    dictionary = list(messages(at(0x9A55, 0x9AE7)))[1:]
+    dictionary_start, first_items, second_items, item_codes, room_titles, text_end = edition["text"]
+    dictionary = list(messages(at(dictionary_start, first_items)))[1:]
     words = []
     for word in dictionary:
         words.append("".join(words[byte] if byte < len(words) else chr(byte) for byte in word).rstrip(","))
-    titles = [label(record, words) for record in list(messages(at(0x9CF0, 0x9E78)))[1:]]
-    codes = at(0x9CDD, 0x9CF0)
+    titles = [label(record, words) for record in list(messages(at(room_titles, text_end)))[1:]]
+    codes = at(item_codes, room_titles)
     items = {chapter: {code: label(record, words) for code, record in zip(codes, list(messages(data))[1:])}
-             for chapter, data in [(1, at(0x9AE7, 0x9BE1)), (2, at(0x9BE1, 0x9CDD))]}
+             for chapter, data in [(1, at(first_items, second_items)), (2, at(second_items, item_codes))]}
     rooms = []
     for index in range(ROOMS):
         record = locations[index * 64:(index + 1) * 64]
@@ -118,7 +122,7 @@ def extract(code, locations):
         if index == 0x1C:
             notes.append("Freed sorcerers gather here as you rescue them. The image shows the room before the reunion.")
         # The carried-item use table includes optional room checks in its third byte.
-        for offset in range(0x9446, 0x945E, 6):
+        for offset in range(edition["item_uses"], edition["item_uses"] + 24, 6):
             sprite, _, required_room = at(offset, offset + 3)
             if index == required_room:
                 notes.append(f"Room-specific use: {item_name(names, sprite)}.")
@@ -168,7 +172,7 @@ def png_from_vram(vram, inks):
             + chunk(b"IDAT", zlib.compress(rows, 9)) + chunk(b"IEND", b""))
 
 
-def capture(atlas, renderer, recovered, destination, code):
+def capture(atlas, renderer, recovered, destination, palette):
     destination.mkdir(exist_ok=True)
     for room in atlas["rooms"]:
         chapter = room["chapter"]
@@ -180,7 +184,7 @@ def capture(atlas, renderer, recovered, destination, code):
                                f"{result.stderr.decode(errors='replace').strip()}")
         if len(result.stdout) != 16384:
             raise ValueError(f"Wrong video RAM length for room {room['id']}")
-        (destination / f"{room['id']}.png").write_bytes(png_from_vram(result.stdout, code[0x22FC:0x230C]))
+        (destination / f"{room['id']}.png").write_bytes(png_from_vram(result.stdout, palette))
 
 
 def main():
@@ -191,9 +195,11 @@ def main():
     args = parser.parse_args()
     code = (args.recovered / "CODE-decoded-7000.bin").read_bytes()
     locations = (args.recovered / "LOCDATA-decoded-4000.bin").read_bytes()
-    atlas = extract(code, locations)
+    edition = json.loads((args.out / "edition.json").read_text(encoding="ascii"))
+    atlas = extract(code, locations, edition)
     if args.renderer:
-        capture(atlas, args.renderer.resolve(), args.recovered.resolve(), args.out / "rooms", code)
+        palette = edition["palette"] - 0x7000
+        capture(atlas, args.renderer.resolve(), args.recovered.resolve(), args.out / "rooms", code[palette:palette + 16])
     atlas["layout"] = layout(atlas["rooms"], atlas["connections"])
     (args.out / "atlas-data.json").write_text(json.dumps(atlas, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(Counter(room["chapter"] for room in atlas["rooms"]), len(atlas["connections"]), "connections")

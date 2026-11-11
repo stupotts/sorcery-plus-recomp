@@ -9,6 +9,7 @@ body { height:100dvh; display:flex; flex-direction:column; overflow:hidden }
 .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:7px; padding:9px 18px; border-bottom:1px solid var(--border); background:#111820 }
 .toolbar .tools { display:flex; gap:5px; margin-left:auto }
 .live-toggle { display:flex; gap:5px; align-items:center; font-size:.86rem }
+.live-toggle[hidden] { display:none }
 .live-toggle input { accent-color:var(--accent) }
 .workspace { --search-width:240px; --search-track:var(--search-width); --panel-width:300px; --panel-min:220px; --map-min:240px; --divider-width:9px; --divider-track:var(--divider-width); --details-track:clamp(var(--panel-min),var(--panel-width),calc(100% - var(--map-min) - var(--divider-track) - var(--search-track))); display:grid; grid-template-columns:var(--search-track) minmax(0,1fr) var(--divider-track) var(--details-track); flex:1; min-height:0 }
 .workspace.search-hidden { --search-track:0px }
@@ -110,11 +111,12 @@ aside h3 { font-size:.8rem; color:var(--muted); letter-spacing:.1em; text-transf
   .caption { font-size:.66rem }
 }
 </style>
-<header><div><p class="eyebrow">AMSTRAD CPC · UK DISK EDITION</p><h1>Sorcery+ <span>Room atlas</span></h1><div class="small">Program by StuPot</div></div><a class="link-button" href="Room-Guide.html">Open room guide →</a></header>
+<header><div><p class="eyebrow">AMSTRAD CPC · /* EDITION */</p><h1>Sorcery+ <span>Room atlas</span></h1><div class="small">Program by StuPot</div></div><a class="link-button" href="Room-Guide.html">Open room guide →</a></header>
 <div class="toolbar" aria-label="Map controls">
   <button id="toggle-search" type="button" aria-controls="search-panel" aria-expanded="true">Hide search</button>
   <button id="toggle-details" type="button" aria-controls="room-panel" aria-expanded="true">Hide room details</button>
   <label class="live-toggle"><input type="checkbox" id="live-update"> Live update</label>
+  <label class="live-toggle" id="name-language-control" title="Switch between English and French names when Live update is off" hidden><input type="checkbox" id="english-names"> English names</label>
   <span id="live-status" class="small" role="status"></span>
   <div class="tools"><button id="chapter1" type="button">Chapter 1</button><button id="chapter2" type="button">Chapter 2</button><button id="fit" type="button">All rooms</button><button id="minus" type="button" aria-label="Zoom out">−</button><button id="plus" type="button" aria-label="Zoom in">+</button></div>
   <div class="legend" aria-label="Door connection legend"><span>Door trail</span><span class="locked">Item lock</span><span class="gate">Chapter gate</span><span>Arrow: one way</span></div>
@@ -152,7 +154,10 @@ const get = id => document.getElementById(id);
 const pad = number => String(number).padStart(2, '0');
 const number = room => `#${pad(room.number)}`;
 const titleCase = text => text.toLowerCase().replace(/(^|[ .-])([a-z])/g, (_, before, letter) => before + letter.toUpperCase());
-const cleanName = room => titleCase(room.title);
+const alternateNames = new Map((data.alternateNames || []).map(room=>[room.id,room]));
+let showAlternateNames = false;
+const namedRoom = room => showAlternateNames ? alternateNames.get(room.id) : room;
+const cleanName = room => titleCase(namedRoom(room).title);
 const svg = get('map'), viewport = get('viewport');
 const notesKey = 'SorceryPlus.RoomNotes.v1';
 const noteLimit = 8000;
@@ -162,12 +167,6 @@ let liveState = null, liveTimer = null, refreshRoomState = ()=>{};
 let searchOrigin, searchSignature;
 const objectLocations = new Map();
 const doorDestinations = new Map(rooms.map(room => [room.id, []]));
-for (const room of rooms) {
-  for (const name of new Set(room.items.filter(item => item.collectible).map(item => item.name))) {
-    if (!objectLocations.has(name)) objectLocations.set(name, []);
-    objectLocations.get(name).push(room);
-  }
-}
 for (const edge of connections) {
   const from = edge.from.slice(0,2), to = edge.to.slice(0,2);
   doorDestinations.get(from).push(to);
@@ -193,9 +192,23 @@ const objectSelect = get('object-search');
 const objectResults = htmlNode('section',get('search-panel'),null,'object-results');
 objectResults.setAttribute('aria-live','polite');
 objectResults.hidden = true;
-for (const name of [...objectLocations.keys()].sort((first,second) => first.localeCompare(second))) {
-  htmlNode('option',objectSelect,titleCase(name)).value = name;
+function refreshObjectChoices() {
+  const placeholder = objectSelect.options[0];
+  objectSelect.replaceChildren(placeholder);
+  objectSelect.value = '';
+  objectLocations.clear();
+  for (const room of rooms) {
+    for (const name of new Set(namedRoom(room).items.filter(item => item.collectible).map(item => item.name))) {
+      if (!objectLocations.has(name)) objectLocations.set(name, []);
+      objectLocations.get(name).push(room);
+    }
+  }
+  for (const name of [...objectLocations.keys()].sort((first,second) => first.localeCompare(second))) {
+    htmlNode('option',objectSelect,titleCase(name)).value = name;
+  }
+  findObject(selected);
 }
+refreshObjectChoices();
 
 function findObject(origin) {
   if (!objectSelect.value) {
@@ -310,14 +323,24 @@ for (const room of rooms) {
   svgNode('image', {x:0,y:card.imageY,width:card.width,height:card.imageHeight,href:room.image,
     preserveAspectRatio:'none'}, group);
   svgNode('text', {x:128,y:17,'text-anchor':'middle',class:'id'}, group).textContent = number(room);
-  titleLines(room.title).forEach((line, i) => {
-    svgNode('text', {x:128,y:33+i*14,'text-anchor':'middle',class:'name'}, group).textContent = line;
-  });
+  for (let i=0; i<2; ++i) svgNode('text', {x:128,y:33+i*14,'text-anchor':'middle',class:'name'}, group);
   group.addEventListener('click', () => { if (!moved) showRoom(room); });
   group.addEventListener('keydown', event => {
     if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); showRoom(room,true); }
   });
-  htmlNode('option',get('room-options')).value = `${number(room)} ${cleanName(room)}`;
+}
+
+function refreshRoomNames() {
+  const options = get('room-options');
+  options.replaceChildren();
+  for (const room of rooms) {
+    const group = cards.get(room.id);
+    const title = namedRoom(room).title;
+    group.setAttribute('aria-label',`${number(room)} ${title}${room===outlinedRoom?', player here':''}`);
+    const lines = titleLines(title);
+    group.querySelectorAll('.name').forEach((node,index)=>node.textContent=lines[index] || '');
+    htmlNode('option',options).value = `${number(room)} ${cleanName(room)}`;
+  }
 }
 
 function viewBox() {
@@ -444,6 +467,11 @@ function liveRoom(room) {
 }
 
 const liveToggle = get('live-update'), liveStatus = get('live-status');
+const englishNames = get('english-names');
+const primaryEnglish = data.nameLanguage !== 'fr';
+let offlineEnglish = primaryEnglish;
+get('name-language-control').hidden = !alternateNames.size;
+englishNames.checked = offlineEnglish;
 let liveGeneration = 0;
 let outlinedRoom = null;
 if (!gameNotes) {
@@ -451,23 +479,43 @@ if (!gameNotes) {
   liveToggle.parentElement.title = 'Open the atlas from the game to see live room data.';
 }
 
+function syncNameLanguage() {
+  englishNames.disabled = liveToggle.checked;
+  englishNames.checked = liveToggle.checked ? primaryEnglish : offlineEnglish;
+  const useAlternate = alternateNames.size > 0 && englishNames.checked!==primaryEnglish;
+  if (useAlternate===showAlternateNames) return;
+  showAlternateNames = useAlternate;
+  refreshRoomNames();
+  refreshObjectChoices();
+  const panel = get('room-panel');
+  const scroll = panel.scrollTop;
+  showRoom(selected);
+  panel.scrollTop = scroll;
+}
+
+englishNames.addEventListener('change',()=>{
+  offlineEnglish = englishNames.checked;
+  syncNameLanguage();
+});
+
 function applyLiveState(snapshot) {
   liveState = snapshot;
   refreshDoorTrails();
   const currentRoom = snapshot?.active ? byId.get(snapshot.room) : null;
   if (currentRoom!==outlinedRoom) {
-    if (outlinedRoom) cards.get(outlinedRoom.id).setAttribute('aria-label',`${number(outlinedRoom)} ${outlinedRoom.title}`);
+    if (outlinedRoom) cards.get(outlinedRoom.id).setAttribute('aria-label',`${number(outlinedRoom)} ${namedRoom(outlinedRoom).title}`);
     outlinedRoom = currentRoom;
     playerFrame.setAttribute('visibility',currentRoom?'visible':'hidden');
     if (currentRoom) {
       const [x,y] = positions[currentRoom.id];
       playerFrame.setAttribute('transform',`translate(${x},${y})`);
-      cards.get(currentRoom.id).setAttribute('aria-label',`${number(currentRoom)} ${currentRoom.title}, player here`);
+      cards.get(currentRoom.id).setAttribute('aria-label',`${number(currentRoom)} ${namedRoom(currentRoom).title}, player here`);
     }
   }
   liveStatus.textContent = !liveToggle.checked ? '' : snapshot?.active
     ? `Live · ${snapshot.freed.length}/8 sorcerers freed`
     : snapshot ? 'Start or load a game for live updates.' : 'Live game unavailable. Showing start locations.';
+  syncNameLanguage();
   refreshRoomState();
   if (searchOrigin && objectSelect.value) findObject(searchOrigin);
 }
@@ -488,6 +536,7 @@ liveToggle.addEventListener('change',()=>{
   ++liveGeneration;
   clearTimeout(liveTimer);
   if (liveToggle.checked) {
+    syncNameLanguage();
     liveStatus.textContent = 'Loading live rooms…';
     pollLive(liveGeneration);
   } else applyLiveState(null);
@@ -619,12 +668,13 @@ function showRoom(room, center = false) {
     return {hint,oneWay:edge && !edge.bidirectional};
   });
   const details = htmlNode('div',panel,null,'room-details');
+  const displayRoom = namedRoom(room);
   let displayedRoom, detailsSignature, spriteSignature;
   const previewReady = photo.decode().then(()=>true,()=>false);
   async function paintPreview() {
     if (!(await previewReady) || !overlay.isConnected) return;
-    const checked = displayedRoom===room ? staticChecked : new Set();
-    if (displayedRoom!==room) {
+    const checked = displayedRoom===displayRoom ? staticChecked : new Set();
+    if (displayedRoom!==displayRoom) {
       for (const [group,records] of [displayedRoom.items,displayedRoom.monsters].entries()) {
         for (const record of records) {
           const key = `${group}-${record.slot}`;
@@ -635,8 +685,8 @@ function showRoom(room, center = false) {
     drawPreviewSprites(overlay,photo,displayedRoom,checked);
   }
   refreshRoomState = ()=>{
-    displayedRoom = liveRoom(room);
-    const live = displayedRoom!==room;
+    displayedRoom = liveRoom(displayRoom);
+    const live = displayedRoom!==displayRoom;
     displayedRoom.doors.forEach((door,index)=>{
       const {hint,oneWay} = doorHints[index];
       const state = [door.unlocked ? 'Unlocked' : door.requires,oneWay ? 'One way' : ''].filter(Boolean).join(' · ');
@@ -695,7 +745,7 @@ function findRoom() {
   const term = get('search').value.trim().toLowerCase();
   const result = rooms.find(room => `${number(room)} ${cleanName(room)}`.toLowerCase() === term)
     || rooms.find(room => term === number(room) || term === String(room.number) || term === pad(room.number) || term === `0x${room.id.toLowerCase()}`)
-    || rooms.find(room => term && room.title.toLowerCase().includes(term));
+    || rooms.find(room => term && namedRoom(room).title.toLowerCase().includes(term));
   if (result) { get('search').setCustomValidity(''); showRoom(result,true); }
   else { get('search').setCustomValidity('No matching room. Try a room number or name.'); get('search').reportValidity(); }
 }
@@ -807,6 +857,7 @@ new ResizeObserver(()=>{ viewBox(); updateDivider(); }).observe(viewport);
 updateDivider();
 const hashRoom = byId.get(location.hash.replace('#room-','').toUpperCase());
 const first = hashRoom || byId.get('00');
+refreshRoomNames();
 showRoom(first);
 fit([first,...first.doors.map(door=>byId.get(door.targetRoom))]);
 </script>

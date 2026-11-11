@@ -11,6 +11,7 @@
 #include <wchar.h>
 #include "room_atlas.h"
 #include "embedded_assets.h"
+#include "edition.h"
 #include "storage.h"
 
 enum { NOTE_LIMIT = 48002, FILE_LIMIT = 4000000, REQUEST_LIMIT = 8192, TOKEN_SIZE = 32 };
@@ -41,17 +42,17 @@ static void append_json(LiveJson *json, const char *format, ...)
 static const uint8_t *atlas_room_record(const uint8_t *memory, unsigned room)
 {
     // The game edits the current room at $6800 and commits it to the table on exit.
-    return memory + (room == memory[0x9314] ? 0x6800 : 0x4000 + 64 * room);
+    return memory + (room == memory[SORCERY_ROOM_NUMBER] ? 0x6800 : 0x4000 + 64 * room);
 }
 
 void room_atlas_update(const uint8_t *memory, const wchar_t *path)
 {
-    if (memory[0x9314] >= ATLAS_ROOMS) return;
+    if (memory[SORCERY_ROOM_NUMBER] >= ATLAS_ROOMS) return;
     LiveJson json = { .size = 0 };
     // $6840 is the player sprite record used by the original draw routines.
     append_json(&json, "{\"active\":true,\"room\":\"%02X\",\"held\":\"%02X\","
                 "\"player\":{\"x\":%u,\"y\":%u,\"sprite\":\"%02X\"},\"rooms\":{",
-                memory[0x9314], memory[0x6846], memory[0x6842], memory[0x6841], memory[0x6843]);
+                memory[SORCERY_ROOM_NUMBER], memory[0x6846], memory[0x6842], memory[0x6841], memory[0x6843]);
     for (unsigned room = 0; room < ATLAS_ROOMS; ++room) {
         const uint8_t *record = atlas_room_record(memory, room);
         append_json(&json, "%s\"%02X\":{\"items\":[", room ? "," : "", room);
@@ -94,8 +95,8 @@ void room_atlas_update(const uint8_t *memory, const wchar_t *path)
     }
     append_json(&json, "],\"sanctuary\":[");
     for (unsigned i = 0; i < freed; ++i) {
-        const uint8_t *actor = memory + (memory[0x9314] == SANCTUARY ? 0x95eb : 0x962b) + 8 * i;
-        if (actor[0] == 0xff) actor = memory + 0x962b + 8 * i;
+        const uint8_t *actor = memory + (memory[SORCERY_ROOM_NUMBER] == SANCTUARY ? SORCERY_SANCTUARY_ACTORS : SORCERY_SANCTUARY_SLOTS) + 8 * i;
+        if (actor[0] == 0xff) actor = memory + SORCERY_SANCTUARY_SLOTS + 8 * i;
         append_json(&json, "%s{\"x\":%u,\"y\":%u,\"sprite\":\"%02X\"}",
                     i ? "," : "", actor[2], actor[1], actor[3]);
     }

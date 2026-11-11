@@ -205,6 +205,47 @@ showRoom(byId.get('27'));
 check(editor().value==='Wine cellar: use the cauldron.', 'cellar note survived browser restart');
 """
 
+FRENCH_ATLAS_CHECKS = """
+check(document.querySelectorAll('.room').length === 75, '75 room cards');
+check(document.querySelector('.eyebrow').textContent.includes('FRENCH DISK EDITION'), 'French edition header');
+showRoom(byId.get('27'));
+check(document.querySelector('#room-panel h2').textContent.includes('Cellier'), 'French room title');
+check(focusLayer.children.length === 4, 'Wine Cellar links match the French disk');
+check(document.querySelector('#room-panel img').naturalWidth ||
+      await document.querySelector('#room-panel img').decode().then(()=>true), 'French room preview loads');
+check([...document.querySelectorAll('#object-search option')].some(option=>option.textContent.includes('Clef')), 'French object names');
+"""
+
+ATLAS_LANGUAGE_CHECKS = """
+const languageControl = get('name-language-control');
+const namesCheckbox = get('english-names');
+check(languageControl.hidden === !data.alternateNames, 'the name toggle requires both disks');
+if (data.alternateNames) {
+  const mainIsEnglish = data.nameLanguage === 'en';
+  const cellar = byId.get('27');
+  const primaryTitle = mainIsEnglish ? 'Wine Cellar' : 'Cellier';
+  const alternateTitle = mainIsEnglish ? 'Cellier' : 'Wine Cellar';
+  const heading = () => get('room-panel').querySelector('h2').textContent;
+  showRoom(cellar);
+  check(namesCheckbox.checked===mainIsEnglish && heading().includes(primaryTitle), 'the main disk sets the default language');
+  namesCheckbox.click();
+  check(heading().includes(alternateTitle) && selected===cellar, 'switching names retains the selected room');
+  check(cards.get(cellar.id).querySelector('.name').textContent.includes(alternateTitle.toUpperCase()), 'map cards use alternate names');
+  const expectedItem = mainIsEnglish ? /Clef/i : /Door Key/i;
+  check([...get('object-search').options].some(option=>expectedItem.test(option.textContent)), 'object search uses alternate names');
+  showRoom(byId.get('00'));
+  get('search').value = alternateTitle;
+  findRoom();
+  check(selected===cellar, 'find room matches the alternate name');
+  liveToggle.checked = true;
+  applyLiveState(null);
+  check(namesCheckbox.disabled && heading().includes(primaryTitle), 'live mode uses the running game names');
+  liveToggle.checked = false;
+  applyLiveState(null);
+  check(!namesCheckbox.disabled && heading().includes(alternateTitle), 'offline names return when live mode is disabled');
+}
+"""
+
 GUIDE_CHECKS = """
 check(document.querySelectorAll('#rows tr').length === 75, '75 guide rows');
 const cellar = document.getElementById('room-27');
@@ -303,9 +344,14 @@ def main():
         scratch = args.scratch.resolve() if args.scratch else root / "verification"
         scratch.mkdir(parents=True, exist_ok=True)
         pages = root / "deliverable"
-        browser_test(args.browser, scratch, pages / "Room-Atlas.html", ATLAS_CHECKS)
-        browser_test(args.browser, scratch, pages / "Room-Atlas.html", NOTES_REOPEN_CHECKS, reopen=True)
-        browser_test(args.browser, scratch, pages / "Room-Guide.html", GUIDE_CHECKS)
+        edition = json.loads((root / "edition.json").read_text(encoding="ascii"))
+        french = edition["label"] == "French disk edition"
+        atlas_checks = FRENCH_ATLAS_CHECKS if french else ATLAS_CHECKS
+        browser_test(args.browser, scratch, pages / "Room-Atlas.html", atlas_checks + ATLAS_LANGUAGE_CHECKS)
+        if not french:
+            browser_test(args.browser, scratch, pages / "Room-Atlas.html", NOTES_REOPEN_CHECKS, reopen=True)
+        guide_checks = GUIDE_CHECKS.replace("Wine Cellar", "Cellier") if french else GUIDE_CHECKS
+        browser_test(args.browser, scratch, pages / "Room-Guide.html", guide_checks)
 
 
 if __name__ == "__main__":

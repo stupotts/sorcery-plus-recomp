@@ -13,19 +13,22 @@ const image = readFileSync(imagePath);
 const header = image.toString('ascii', 0, 34);
 const extended = header === 'EXTENDED CPC DSK File\r\nDisk-Info\r\n';
 const standard = header === 'MV - CPCEMU Disk-File\r\nDisk-Info\r\n';
-if ((!extended && !standard) || image[48] !== 40 || image[49] !== 1) {
-  throw new Error('Expected a 40-track, single-sided Amstrad CPC DSK image.');
+const trackCount = image[48];
+if (image.length < 256 || image[49] !== 1 ||
+    !(standard && trackCount === 40 || extended && trackCount >= 40 && trackCount <= 204 &&
+      image.subarray(92, 52 + trackCount).every(size => size === 0))) {
+  throw new Error('Expected a single-sided Amstrad CPC DSK image with 40 recorded tracks.');
 }
 
-const trackCount = image[48];
 const sectorSize = 512;
 const sectorsPerTrack = 9;
 const sectors = new Map();
 const unusualTracks = [];
 let secondStage;
+let alternateSecondStage;
 let trackStart = 256;
 
-for (let track = 0; track < trackCount; track++) {
+for (let track = 0; track < 40; track++) {
   const trackSize = extended ? image[52 + track] * 256 : image.readUInt16LE(50);
   const count = image[trackStart + 21];
   if (!count || count > sectorsPerTrack || trackSize < 256 + count * sectorSize ||
@@ -46,8 +49,12 @@ for (let track = 0; track < trackCount; track++) {
       const logicalSector = track * sectorsPerTrack + id - 0xc1;
       sectors.set(logicalSector, image.subarray(dataStart, dataStart + sectorSize));
     }
-    if (track === 3 && id === 0x7b) {
-      secondStage = image.subarray(dataStart, dataStart + sectorSize);
+    if (track === 3) {
+      const data = image.subarray(dataStart, dataStart + sectorSize);
+      if (id === 0x7b) secondStage = data;
+      if (hash(data) === 'f4d021a5619202129e2c152c5a26180b9f679cc25db5ecdb28aaf5bd24c9637a') {
+        alternateSecondStage = data;
+      }
     }
   }
   if (count !== sectorsPerTrack || ids.some((id) => id < 0xc1 || id > 0xc9)) {
@@ -55,7 +62,8 @@ for (let track = 0; track < trackCount; track++) {
   }
   trackStart += trackSize;
 }
-if (!secondStage) throw new Error('Missing Sorcery+ loader sector 7B on track 3.');
+secondStage ??= alternateSecondStage;
+if (!secondStage) throw new Error('No supported Sorcery+ title loader found on track 3.');
 
 function readSectors(first, count) {
   const blocks = [];
@@ -73,18 +81,26 @@ function readName(bytes) {
 
 const directory = readSectors(0, 4);
 const entries = [];
+// A repacked disk can add directory entries which the Windows build never reads.
+const gameFiles = new Set([
+  'TITLEP.BIN', 'CODE.BIN', 'LOCDATA.BIN', 'CONSET1.BIN', 'CONSET2.BIN',
+  'SPRITES1.BIN', 'SPRITES2.BIN', 'SMESSC.BIN', 'MUCODE.BIN', 'SOUND.DAT',
+  'CONALP.BIN', 'TISCRN.BIN', 'SORCERYP.BIN', 'SORCERY.BIN',
+]);
 for (let offset = 0; offset < directory.length; offset += 32) {
   const entry = directory.subarray(offset, offset + 32);
   if (entry[0] === 0xe5) continue;
   const name = `${readName(entry.subarray(1, 9))}.${readName(entry.subarray(9, 12))}`;
-  if (entry[0] !== 0 || entry[12] !== 0 || entry[14] !== 0 || !/^[A-Z0-9]+\.[A-Z0-9]+$/.test(name)) {
-    throw new Error(`Unexpected directory entry ${name}`);
+  if (entry[0] !== 0 || !gameFiles.has(name)) continue;
+  if (entry[12] !== 0 || entry[14] !== 0) {
+    throw new Error(`Unsupported directory extent for ${name}`);
   }
 
   const recordCount = entry[15];
   const allocations = [...entry.subarray(16, 32)].filter(Boolean);
   const records = Buffer.concat(allocations.map((block) => readSectors(block * 2, 2)))
     .subarray(0, recordCount * 128);
+  if (records.length < 128) throw new Error(`Missing AMSDOS header in ${name}`);
   const header = records.subarray(0, 128);
   const checksum = header.subarray(0, 67).reduce((sum, value) => sum + value, 0);
   const length = header.readUIntLE(64, 3);
@@ -115,23 +131,22 @@ function filePayload(name) {
   return matches[0].payload;
 }
 
-const bootstrap = Buffer.from(filePayload('SORCERYP.BIN'));
-// The bootstrap uses its already-decoded bytes as future XOR seeds.
-for (let pass = 0; pass < 256; pass++) {
-  if (pass === 0x18) continue;
-  bootstrap[4] = pass;
-  let value = bootstrap[pass];
-  for (let index = 0x18; index < bootstrap.length; index++) {
-    value ^= bootstrap[index];
-    bootstrap[index] = value;
+const recovered = new Map([['title-loader-4000.bin', secondStage]]);
+if (entries.some(({ metadata }) => metadata.name === 'SORCERYP.BIN')) {
+  const bootstrap = Buffer.from(filePayload('SORCERYP.BIN'));
+  // The UK bootstrap uses its already-decoded bytes as future XOR seeds.
+  for (let pass = 0; pass < 256; pass++) {
+    if (pass === 0x18) continue;
+    bootstrap[4] = pass;
+    let value = bootstrap[pass];
+    for (let index = 0x18; index < bootstrap.length; index++) {
+      value ^= bootstrap[index];
+      bootstrap[index] = value;
+    }
   }
+  bootstrap[4] = 0;
+  recovered.set('SORCERYP-decoded-8000.bin', bootstrap);
 }
-bootstrap[4] = 0;
-
-const recovered = new Map([
-  ['SORCERYP-decoded-8000.bin', bootstrap],
-  ['track-03-sector-7b-4000.bin', secondStage],
-]);
 const roomCount = 79;
 const roomSectors = readSectors(31 * sectorsPerTrack, roomCount);
 const roomMaps = [];
@@ -238,7 +253,8 @@ function renderTileMap(tiles, tileMap, palette) {
 const title = filePayload('TITLEP.BIN');
 recovered.set('title-art.png', renderTileMap(title, title.subarray(4096), secondStage.subarray(0x119, 0x129)));
 const code = recovered.get('CODE-decoded-7000.bin');
-const roomPalette = code.subarray(0x22fc, 0x230c);
+const paletteOffset = secondStage === alternateSecondStage ? 0x22f8 : 0x22fc;
+const roomPalette = code.subarray(paletteOffset, paletteOffset + 16);
 const sampleRooms = [[0x00, 1], [0x02, 1], [0x32, 2], [0x47, 2]];
 for (const [room, chapter] of sampleRooms) {
   const tiles = recovered.get(`CONSET${chapter}-decoded-5800.bin`);

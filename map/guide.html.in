@@ -24,7 +24,7 @@ li+li { margin-top:.28rem }
 .notes { max-width:78ch; line-height:1.5 }
 @media print { :root { color-scheme:light; --text:#10151b; --muted:#38434b; --bg:#fff; --border:#a6abb0; --accent:#145144 } header, th, tbody tr:nth-child(even) {background:#fff} .controls {display:none} .room-name, .heal, .drain, .lock, th {color:#111} table {min-width:0} tr {break-inside:avoid} }
 </style>
-<header><div><p class="eyebrow">AMSTRAD CPC · UK DISK EDITION</p><h1>Sorcery+ <span>Room guide</span></h1></div><a href="Room-Atlas.html" class="link-button">← Open room atlas</a></header>
+<header><div><p class="eyebrow">AMSTRAD CPC · /* EDITION */</p><h1>Sorcery+ <span>Room guide</span></h1></div><a href="Room-Atlas.html" class="link-button">← Open room atlas</a></header>
 <main>
   <p class="notes">Starting objects, monsters and cauldrons by room, plus door requirements and item-operated barriers. Room numbers match the atlas. The letters A–D identify the doors on each room image.</p>
   <div class="controls">

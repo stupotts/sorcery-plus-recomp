@@ -1,12 +1,14 @@
-Sorcery+ v2.7 for Windows 11 x64
-================================
+Sorcery+ v3.0 Multilingual Edition for Windows 11 x64
+===================================================
 
 Put SorceryPlus.exe in a writable folder, open it, wait for the title, and
 press Z. The executable contains the assets recovered locally from your
-compatible UK Amstrad CPC disk. It can be run on its own.
+compatible Amstrad CPC disk. It can be run on its own.
 
 To update, close the game and copy the new SorceryPlus.exe into your existing
 game folder so it can find your previous settings and saves.
+Keep UK and French builds in separate folders to keep their saves and
+high scores separate.
 Open Help > Launch Guide in the windowed menu to read this guide again.
 Help > About shows the build version and program credit.
 Help > Room Atlas opens the offline map in your default browser. Keep the

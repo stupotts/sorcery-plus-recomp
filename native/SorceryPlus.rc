@@ -10,3 +10,25 @@ BEGIN
     CTEXT "Program by StuPot", IDC_ABOUT_CREDIT, 8, 36, 214, 11
     DEFPUSHBUTTON "OK", 1, 91, 51, 48, 13
 END
+
+1 VERSIONINFO
+FILEVERSION SORCERY_VERSION_NUMBERS
+PRODUCTVERSION SORCERY_VERSION_NUMBERS
+FILEOS 0x00040004
+FILETYPE 0x1
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "Sorcery+ Multilingual Edition"
+            VALUE "FileVersion", SORCERY_VERSION_TEXT
+            VALUE "ProductName", "Sorcery+ Multilingual Edition"
+            VALUE "ProductVersion", SORCERY_VERSION_TEXT
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

@@ -12,7 +12,7 @@ static bool call_room_routine(uint16_t entry)
     pc = entry;
     for (unsigned attempt = 0; attempt < 400000 && pc != finish && !stopped; ++attempt) {
         // Skip the pickup-object draw call in the original room initializer.
-        if (pc == 0x7623) pc = 0x7626;
+        if (pc == SORCERY_PICKUP_DRAW) pc = SORCERY_AFTER_PICKUP_DRAW;
         game_step();
     }
     return pc == finish && !faults;
@@ -49,14 +49,14 @@ int main(int argc, char **argv)
     SET(IY, 0x6800);
     sp = 0xbff0;
     a = (uint8_t)room;
-    if (!call_room_routine(0x75ae)) {
+    if (!call_room_routine(SORCERY_ROOM_ENTRY)) {
         fprintf(stderr, "Room %02X stopped at %04X with %llu faults\n", room, pc, (unsigned long long)faults);
         return 5;
     }
 
     if (RAM(0x6832) != 0xff) {
-        SET(IX, 0x943c);
-        if (!call_room_routine(0x8aba)) return 6;
+        SET(IX, SORCERY_PRISONER_SPRITE);
+        if (!call_room_routine(SORCERY_DRAW_SPRITE)) return 6;
     }
     if (_setmode(_fileno(stdout), _O_BINARY) == -1) return 7;
     return fwrite(ram + 0xc000, 1, 0x4000, stdout) == 0x4000 ? 0 : 7;

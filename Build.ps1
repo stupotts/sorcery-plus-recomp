@@ -1,5 +1,6 @@
 param(
     [string]$Disk = (Join-Path $PSScriptRoot 'game.dsk'),
+    [string]$AtlasLanguageDisk,
     [string]$Python,
     [string]$Node,
     [string]$Zig,
@@ -17,7 +18,7 @@ if (!(Test-Path -LiteralPath $Disk -PathType Leaf)) {
 $Disk = (Resolve-Path -LiteralPath $Disk).ProviderPath
 $diskHash = (Get-FileHash -LiteralPath $Disk -Algorithm SHA256).Hash
 if ($CheckDisk -and $diskHash -eq $expectedHash) {
-    Write-Output "Compatible disk image. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
+    Write-Output "Compatible UK disk image. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
     return
 }
 if ($diskHash -ne $expectedHash -and !$TryOtherDisk) {
@@ -64,13 +65,28 @@ try {
         return
     }
     $Zig = Find-BuildTool $Zig 'zig.exe' '-Zig'
+    $atlasOptions = @()
+    if ($AtlasLanguageDisk) {
+        $secondDisk = (Resolve-Path -LiteralPath $AtlasLanguageDisk).ProviderPath
+        $alternate = Join-Path $work 'alternate-language'
+        [void][IO.Directory]::CreateDirectory($alternate)
+        $alternateExtraction = Join-Path $alternate 'extracted'
+        Invoke-BuildStep 'Extracting the atlas language disk' $Node @((Join-Path $PSScriptRoot 'tools\sorcery-extract.mjs'), $secondDisk, $alternateExtraction)
+        Invoke-BuildStep 'Checking the atlas language disk' $Python @((Join-Path $native 'prepare.py'), $alternateExtraction, $alternate)
+        $primaryLanguage = (Get-Content -Raw -LiteralPath (Join-Path $work 'edition.json') | ConvertFrom-Json).language
+        $alternateLanguage = (Get-Content -Raw -LiteralPath (Join-Path $alternate 'edition.json') | ConvertFrom-Json).language
+        if ($primaryLanguage -eq $alternateLanguage) { throw 'The atlas language disk must be the other edition (UK or French).' }
+        Invoke-BuildStep 'Reading alternate room and item names' $Python @((Join-Path $map 'extract_atlas.py'), (Join-Path $alternateExtraction 'recovered'), '--out', $alternate)
+        $atlasOptions = @('--alternate-data', $alternate)
+    }
     Invoke-BuildStep 'Translating Z80 code' $Python @((Join-Path $native 'translate.py'), $recovered, (Join-Path $work 'translated.inc'))
 
     $compile = @{ Python = $Python; Zig = $Zig; Work = $work; Optimize = $Optimize }
     Write-Host 'Building the room capture tool'
     & (Join-Path $native 'compile.ps1') @compile -Output $renderer -Capture
     Invoke-BuildStep 'Capturing and mapping rooms' $Python @((Join-Path $map 'extract_atlas.py'), $recovered, '--renderer', $renderer, '--out', $work)
-    Invoke-BuildStep 'Generating atlas pages' $Python @((Join-Path $map 'build_pages.py'), '--data-dir', $work, '--sprites-from', $recovered)
+    $pageArguments = @((Join-Path $map 'build_pages.py'), '--data-dir', $work, '--sprites-from', $recovered) + $atlasOptions
+    Invoke-BuildStep 'Generating atlas pages' $Python $pageArguments
     Invoke-BuildStep 'Verifying the generated atlas' $Python @((Join-Path $map 'verify_atlas.py'), '--data-dir', $work)
 
     Write-Host 'Compiling SorceryPlus.exe'

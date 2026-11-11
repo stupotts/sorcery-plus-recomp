@@ -7,6 +7,7 @@
 #include <string.h>
 #include <wchar.h>
 #include "embedded_assets.h"
+#include "edition.h"
 #include "presentation.h"
 #include "save_dialog.h"
 #include "storage.h"
@@ -467,7 +468,7 @@ static int call_firmware(void) {
         else top_mode=screen_mode;
         break;
     case 0xbd25:
-        if(word(sp)==0x8dd2) {
+        if(word(sp)==SORCERY_HUD_PALETTE_RETURN) {
             memcpy(top_inks,firmware_inks,sizeof(top_inks));top_mode=screen_mode;split_line=144;
         }
         for(unsigned j=0;j<16;++j) inks[j]=hardware_ink[rd(DE+1+j)&31];
@@ -523,7 +524,7 @@ static Snapshot title_start;
 
 static void capture_snapshot(Snapshot *snapshot) {
     memset(snapshot,0,sizeof(*snapshot));
-    snapshot->format=2;
+    snapshot->format=SORCERY_SAVE_FORMAT;
 #define CAPTURE_FIELD(type,name) snapshot->name=name;
 #define CAPTURE_ARRAY(name) memcpy(snapshot->name,name,sizeof(name));
     SNAPSHOT_FIELDS(CAPTURE_FIELD,CAPTURE_ARRAY)
@@ -542,7 +543,7 @@ static void restore_snapshot(const Snapshot *snapshot) {
     music_stop();
 }
 
-static bool gameplay_active(void) { return word(0x92f9)==0x92e1; }
+static bool gameplay_active(void) { return word(SORCERY_FRAME_TABLE_POINTER)==SORCERY_GAMEPLAY_FRAME_TABLE; }
 static bool player_game_active(void) { return gameplay_active()&&!(rd(0x6851)&0x80); }
 static void update_live_atlas(bool force);
 
@@ -565,14 +566,14 @@ static bool door_frame_finished(uint16_t address) {
     // Each address follows a complete door or player redraw in the original
     // transition. This sequence runs outside the regular gameplay frame commit.
     switch(address) {
-    case 0x7985: // Player drawn before opening.
-    case 0x7998: // Door opening.
-    case 0x79b9: // Player moving into the door.
-    case 0x7a94: // Destination room drawn.
-    case 0x7b15: // Destination door drawn open.
-    case 0x7b2d: // Player moving out of the door.
-    case 0x7b54: // Door closing.
-    case 0x7beb: // Player and object redraw shared by both sides.
+    case SORCERY_DOOR_START: // Player drawn before opening.
+    case SORCERY_DOOR_OPENING: // Door opening.
+    case SORCERY_DOOR_ENTERING: // Player moving into the door.
+    case SORCERY_DOOR_DESTINATION: // Destination room drawn.
+    case SORCERY_DOOR_OPEN: // Destination door drawn open.
+    case SORCERY_DOOR_LEAVING: // Player moving out of the door.
+    case SORCERY_DOOR_CLOSING: // Door closing.
+    case SORCERY_DOOR_REDRAW: // Player and object redraw shared by both sides.
         return true;
     default:
         return false;
@@ -584,7 +585,7 @@ static void draw_frame(void) {
     if(gameplay_active()&&completed_game_frame&&(start&0xc000)==completed_game_base) {
         // Hold completed sprite pixels while preserving live raster palette changes.
         uint8_t hud_inks[16];
-        for(unsigned pen=0;pen<16;++pen) hud_inks[pen]=hardware_ink[rd(0x9374+pen)&31];
+        for(unsigned pen=0;pen<16;++pen) hud_inks[pen]=hardware_ink[rd(SORCERY_HUD_PALETTE+pen)&31];
         display_frame_split(completed_game_pixels,split_line<200?top_inks:firmware_inks,
                             split_line<200?bottom_inks:hud_inks,start&0x3fff,144,0,1);
     } else if(split_line<200) {
@@ -637,7 +638,7 @@ static bool progress_path(wchar_t *path,bool create) {
 static void refresh_high_scores(void) {
     wchar_t path[PROFILE_PATH_CAPACITY];
     if(profile_data_path(path,high_scores_filename,false)&&high_scores_load(path,scores)) {
-        memcpy(ram+0x9900,scores,HIGH_SCORE_TABLE_SIZE);
+        memcpy(ram+SORCERY_HIGH_SCORES,scores,HIGH_SCORE_TABLE_SIZE);
     }
 }
 static void record_high_scores(const uint8_t *incoming) {
@@ -648,7 +649,7 @@ static void record_high_scores(const uint8_t *incoming) {
         score_write_failed=true;
     }
     // The original qualification and display routines use this live ledger.
-    memcpy(ram+0x9900,scores,HIGH_SCORE_TABLE_SIZE);
+    memcpy(ram+SORCERY_HIGH_SCORES,scores,HIGH_SCORE_TABLE_SIZE);
 }
 static bool valid_profile(const char *name) {
     size_t len=strlen(name);
@@ -663,7 +664,7 @@ static bool valid_profile(const char *name) {
 }
 static void report_progress(const char *action) {
     printf("%s frame=%llu room=%02X x=%02X y=%02X energy=%02X\n",action,
-        (unsigned long long)frame,rd(0x9314),rd(0x6842),rd(0x6841),rd(0x684d));
+        (unsigned long long)frame,rd(SORCERY_ROOM_NUMBER),rd(0x6842),rd(0x6841),rd(0x684d));
 }
 static bool save_progress_to(const wchar_t *path) {
     Snapshot snapshot;
@@ -684,8 +685,8 @@ static int save_progress(bool overwrite,bool cancel) {
 static bool load_progress_from(const wchar_t *path) {
     Snapshot snapshot;
     if(!storage_load(path,&snapshot,sizeof(snapshot))) return false;
-    if(snapshot.format!=2||snapshot.file_size>sizeof(file_buffer)||
-       snapshot.ram[0x9314]>=79||snapshot.im>2||snapshot.txt_arg_count>2||
+    if(snapshot.format!=SORCERY_SAVE_FORMAT||snapshot.file_size>sizeof(file_buffer)||
+       snapshot.ram[SORCERY_ROOM_NUMBER]>=79||snapshot.im>2||snapshot.txt_arg_count>2||
        snapshot.screen_mode<0||snapshot.screen_mode>2||snapshot.split_line<0||snapshot.split_line>200||
        snapshot.top_mode<0||snapshot.top_mode>2||snapshot.bottom_mode<0||snapshot.bottom_mode>2||
        snapshot.cycles-snapshot.frame*79872>80000) return false;
@@ -696,7 +697,7 @@ static bool load_progress_from(const wchar_t *path) {
     wchar_t score_path[PROFILE_PATH_CAPACITY];
     if(profile_data_path(score_path,high_scores_filename,true)&&
        !high_scores_import(score_path,scores,snapshot.scores)) score_write_failed=true;
-    memcpy(ram+0x9900,scores,HIGH_SCORE_TABLE_SIZE);
+    memcpy(ram+SORCERY_HIGH_SCORES,scores,HIGH_SCORE_TABLE_SIZE);
     for(unsigned index=1;index<=15;++index) {
         sound_envelope(false,index,ram+0xa600+16*index);
         sound_envelope(true,index,ram+0xa700+16*index);
@@ -761,7 +762,7 @@ static void reset_high_scores(void) {
         return;
     }
     memcpy(scores,original,sizeof(scores));
-    memcpy(ram+0x9900,scores,HIGH_SCORE_TABLE_SIZE);
+    memcpy(ram+SORCERY_HIGH_SCORES,scores,HIGH_SCORE_TABLE_SIZE);
     score_write_failed=false;
     if(!player_game_active()) return_to_title();
 }
@@ -796,7 +797,7 @@ static void new_frame(void) {
     }
     if(trace&&(frame<=5||!(frame%25))) fprintf(stderr,
         "frame %llu PC=%04X IM=%u room=%02X xy=%02X,%02X flags=%02X phase=%u IY=%04X, mode=%d\n",
-        (unsigned long long)frame,pc,im,rd(0x9314),rd(0x6842),rd(0x6841),rd(0x684a),rd(0x92fb),IY,screen_mode);
+        (unsigned long long)frame,pc,im,rd(SORCERY_ROOM_NUMBER),rd(0x6842),rd(0x6841),rd(0x684a),rd(SORCERY_FRAME_PHASE),IY,screen_mode);
     if(ticker_count) --ticker_count;
     if(ticker_routine&&!ticker_count&&!event_active&&!halted) {
         ticker_count=ticker_divisor;event_active=true;push(pc);save_registers();push(0xb93f);pc=ticker_routine;
@@ -824,18 +825,18 @@ static void game_step(void) {
     if(irq_delay) --irq_delay;
     if(halted) { cycles=next_irq<next_frame?next_irq:next_frame;return; }
     // This disk lacks STRANGE.SCN. Continue the attract sequence after its optional splash.
-    if(pc==0x7167) pc=0x71a5;
+    if(pc==SORCERY_OPTIONAL_SPLASH) pc=SORCERY_AFTER_SPLASH;
     // The original routine is about to compare the new score against the all-time table.
-    if(pc==0x882b) refresh_high_scores();
+    if(pc==SORCERY_COMPARE_SCORE) refresh_high_scores();
     // $74B9 follows the gameplay update's sprite and HUD writes.
-    const bool room_ready = pc==0x74b9||(pc==0x7467&&!completed_game_frame)||pc==0x7a94;
+    const bool room_ready = pc==SORCERY_ROOM_READY||(pc==SORCERY_GAME_LOOP&&!completed_game_frame)||pc==SORCERY_DOOR_DESTINATION;
     if(room_ready||door_frame_finished(pc)) finish_game_frame();
     if(room_ready) update_live_atlas(false);
     last[last_index++&31]=pc;
     if(trace&&steps<70) fprintf(stderr,"$%04X AF=%04X BC=%04X DE=%04X HL=%04X\n",pc,AF,BC,DE,HL);
     ++steps;
     ++ir_r;
-    if((pc>=0x7000&&pc<0xa157)||(pc>=0x4f00&&pc<0x531b)) cycles+=translated_step();
+    if((pc>=0x7000&&pc<0x7000+SORCERY_CODE_SIZE)||(pc>=0x4f00&&pc<0x531b)) cycles+=translated_step();
     else cycles+=call_firmware();
 }
 static bool boot(void) {
@@ -844,11 +845,11 @@ static bool boot(void) {
     wchar_t *end=wcsrchr(base_path,L'\\');
     if(!end) return false;
     end[1]=0;
-    if(!read_exact("CODE-decoded-7000.bin",ram+0x7000,12631)||
+    if(!read_exact("CODE-decoded-7000.bin",ram+0x7000,SORCERY_CODE_SIZE)||
        !read_exact("CONALP-decoded-0100.bin",ram+0x0100,2304)||
        !read_exact("TISCRN-decoded-69c0.bin",ram+0x69c0,720)||
        !read_exact("SOUND-decoded-a600.bin",ram+0xa600,647)||
-       !read_exact("track-03-sector-7b-4000.bin",boot_sector,sizeof(boot_sector))||
+       !read_exact("title-loader-4000.bin",boot_sector,sizeof(boot_sector))||
        !read_exact("room-sectors-00-4e.bin",room_sectors,sizeof(room_sectors))||
        !read_exact("track-39-sector-c9-high-scores.bin",scores,sizeof(scores))||
        !read_exact("track-39-sector-c8.bin",sector_c8,sizeof(sector_c8))) return false;
@@ -973,7 +974,7 @@ int main(int argc,char **argv) {
     printf("Frames=%llu instructions=%llu elapsed_ms=%.2f room=%02X mode=%d vram=%016llx sound_commands=%llu audio_device=%u audio_buffers=%u pcm=%016llx faults=%u\n",
         (unsigned long long)host_frames,(unsigned long long)steps,
         (double)(now.QuadPart-start.QuadPart)*1000.0/frequency.QuadPart,
-        rd(0x9314),screen_mode,(unsigned long long)frame_hash(),
+        rd(SORCERY_ROOM_NUMBER),screen_mode,(unsigned long long)frame_hash(),
         (unsigned long long)sound_commands,audio_on,audio_submissions(),(unsigned long long)audio_pcm_hash(),faults);
     report_progress("Ended");
     if(screenshot_errors) fprintf(stderr,"Could not create snapshot.bmp. Use a folder without a previous snapshot.\n");

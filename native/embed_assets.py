@@ -1,24 +1,23 @@
 """Generate read-only game assets and the launch guide for the Windows executable."""
 
 import argparse
+import json
 from pathlib import Path
 
 
 ASSET_SIZES = {
-    "CODE-decoded-7000.bin": 12631,
     "CONALP-decoded-0100.bin": 2304,
     "CONSET1.BIN": 4096,
     "CONSET2.BIN": 4096,
     "LOCDATA.BIN": 5120,
     "MUCODE.BIN": 1051,
-    "SMESSC.BIN": 4957,
     "SOUND-decoded-a600.bin": 647,
     "SPRITES1.BIN": 13824,
     "SPRITES2.BIN": 13824,
     "TISCRN-decoded-69c0.bin": 720,
     "TITLEP.BIN": 4816,
     "room-sectors-00-4e.bin": 40448,
-    "track-03-sector-7b-4000.bin": 512,
+    "title-loader-4000.bin": 512,
     "track-39-sector-c8.bin": 512,
     "track-39-sector-c9-high-scores.bin": 512,
 }
@@ -33,10 +32,11 @@ def write_bytes(file, name, data):
     file.write("};\n\n")
 
 
-def generate(assets, guide, output, atlas_dir):
+def generate(assets, guide, output, atlas_dir, edition):
     blob = bytearray()
     entries = []
-    for name, expected_size in ASSET_SIZES.items():
+    sizes = {**ASSET_SIZES, "CODE-decoded-7000.bin": edition["code_size"], "SMESSC.BIN": edition["message_size"]}
+    for name, expected_size in sizes.items():
         data = (assets / name).read_bytes()
         if len(data) != expected_size:
             raise ValueError(f"{name}: expected {expected_size} bytes, found {len(data)}")
@@ -99,11 +99,13 @@ if __name__ == "__main__":
     parser.add_argument("assets", type=Path)
     parser.add_argument("guide", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--edition-info", required=True, type=Path)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--atlas-dir", type=Path)
     mode.add_argument("--capture-only", action="store_true")
     args = parser.parse_args()
     try:
-        generate(args.assets, args.guide, args.output, args.atlas_dir)
+        edition = json.loads(args.edition_info.read_text(encoding="ascii"))
+        generate(args.assets, args.guide, args.output, args.atlas_dir, edition)
     except (OSError, ValueError) as error:
         parser.error(str(error))

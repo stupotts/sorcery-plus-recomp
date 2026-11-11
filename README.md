@@ -1,6 +1,6 @@
 # Sorcery+ for Windows
 
-**Native Amstrad CPC recompilation · Windows 11 x64 · v2.7 · Program by StuPot**
+**v3.0 Multilingual Edition · Native Amstrad CPC recompilation · Windows 11 x64 · Program by StuPot**
 
 Sorcery+ is a two-chapter adventure where you fly between rooms, rescue captured sorcerers, and find the right objects to defeat monsters and open doors. This project translates the game's original Z80 machine code into C at build time. The Windows program handles display, audio, input, saves, and the interactive room atlas.
 
@@ -14,13 +14,16 @@ Sorcery+ is a two-chapter adventure where you fly between rooms, rescue captured
 
 ## Compatible disk
 
-Supply your own Amstrad CPC `.dsk` image. The following UK disk dump is the reference. The filename is listed for identification and can be changed.
+Supply your own Amstrad CPC `.dsk` image. Compare its MD5 with the tested images below. You can rename the file.
 
-| Field | Tested disk image |
-| --- | --- |
-| Filename | `Sorcery Plus (UK) (1985).dsk` |
-| MD5 | `463492394b61a118543fd49f8f669ca9` |
-| SHA-256 | `f5dee21140345ea84bee66ccf86db892c079ce13bc1d13c240a2103ba0ce2a26` |
+| Tested disk image | MD5 | Differences |
+| --- | --- | --- |
+| UK reference, `Sorcery Plus (UK) (1985).dsk` | `463492394b61a118543fd49f8f669ca9` | Standard DSK with English game text. This was the disk used for the first Windows build. |
+| UK Extended DSK | `7257be7a337bfc9f529606ff98836e3c` | Same game code, English text, and room artwork as the UK reference. The disk directory and stored high-score table differ. |
+| French Extended DSK | `4524f0b90334b251a1e9caf3349184e4` | French game code and text. The atlas uses French room and item names. |
+| French Extended DSK with alternate first-chapter tileset | `dd09050dae128f733ea7e7846a03977a` | Same French game code and text. The loader packaging and stored high scores differ, and the alternate tileset changes the artwork in 34 first-chapter room previews. |
+
+All four images have the same 75 playable room layouts and 97 door connections. Keep UK and French builds in separate folders so each has its own saves and scores.
 
 To check a disk, open PowerShell in this folder and run:
 
@@ -30,7 +33,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -CheckDisk -
 
 Replace the example path with your own. You can also put a copy beside `Build.ps1` named `game.dsk` and omit `-Disk`.
 
-An exact SHA-256 match can be checked without the build tools. For a different hash, PowerShell asks whether to try the image. Type **Y** to extract and check the required game files and sectors with Node.js and Python. A differently packaged standard or extended CPC DSK can pass if its required data matches the reference. A modified game revision needs separate porting work. Use `-TryOtherDisk` to run the same compatibility checks without the prompt.
+The UK reference can be identified without the build tools by its SHA-256, `f5dee21140345ea84bee66ccf86db892c079ce13bc1d13c240a2103ba0ce2a26`. For a different hash, PowerShell asks whether to try the image. Type **Y** to extract and check the game files and sectors with Node.js and Python. The build detects the edition from its decoded `CODE.BIN` and checks its accompanying data. A valid high-score table can differ because the original game writes new scores back to the disk. Use `-TryOtherDisk` to run the same checks without the prompt.
 
 ## Build and play
 
@@ -47,7 +50,7 @@ In Visual Studio Code, open [`SorceryPlus.code-workspace`](SorceryPlus.code-work
 
 If a tool is outside `PATH`, pass its full path with `-Python`, `-Node`, or `-Zig`. The [build notes](native/BUILD.md) describe the build stages and diagnostics.
 
-The source-only build was tested on Windows 11 x64 with the disk listed above. A fresh copy of the EXE reached Outside the Castle in a 400-frame gameplay run and matched the original v2.7 build's graphics and audio checksums. The build verifies all 75 room images and 97 map connections.
+The UK build reached Outside the Castle in a 400-frame Windows 11 x64 gameplay run and matched the original v2.7 graphics and audio checksums. The build verifies all 75 room images and 97 map connections for either edition.
 
 ## Controls
 
@@ -85,6 +88,14 @@ Preferences, saves, high scores, and atlas notes are stored under `profiles` bes
 ## Room atlas
 
 Choose **Help → Room Atlas** to explore all 75 rooms in your browser. Keep the game open while using the atlas.
+
+Room and item names come from the disk used to build the game. To include both languages, pass a compatible disk from the other edition with `-AtlasLanguageDisk`:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -Disk '.\game3.dsk' -AtlasLanguageDisk '.\game.dsk' -Launch
+```
+
+In this example, `game3.dsk` is French and `game.dsk` is UK. Change the paths to match your files. The atlas shows an **English names** checkbox when both editions are available. Check it for English or clear it for French. **Live update** uses the running game's language. The separate room guide uses the main disk's names.
 
 | Atlas option | What it does |
 | --- | --- |

@@ -89,7 +89,7 @@ static INT_PTR CALLBACK about_proc(HWND dialog, UINT message, WPARAM wparam, LPA
     switch (message) {
     case WM_INITDIALOG:
         app_icon_set(dialog);
-        SetDlgItemTextW(dialog, IDC_ABOUT_VERSION, L"Sorcery+  ·  Version " SORCERY_VERSION);
+        SetDlgItemTextW(dialog, IDC_ABOUT_VERSION, SORCERY_VERSION_LABEL);
         return TRUE;
     case WM_COMMAND:
         if (LOWORD(wparam) != IDOK && LOWORD(wparam) != IDCANCEL) break;
