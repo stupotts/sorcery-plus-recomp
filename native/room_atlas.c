@@ -73,6 +73,14 @@ void room_atlas_update(const uint8_t *memory, const wchar_t *path)
                         comma ? "," : "", slot, actor[2], actor[1], actor[3]);
             comma = true;
         }
+        append_json(&json, "],\"doorLocks\":[");
+        for (unsigned slot = 0; slot < 4; ++slot) {
+            const uint8_t *door = record + 0x16 + 4 * slot;
+            if (slot) append_json(&json, ",");
+            // The original door test at $7B7C masks out the destination slot.
+            if (door[0] == 0xff) append_json(&json, "null");
+            else append_json(&json, "%u", door[3] & 0x3f);
+        }
         append_json(&json, "],\"prisoner\":%s}", record[0x32] == 0xff ? "false" : "true");
     }
     // These are the eight prisoner rooms in the original location table.

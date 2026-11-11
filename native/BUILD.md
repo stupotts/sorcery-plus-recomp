@@ -1,6 +1,6 @@
 # Native build
 
-Follow the [README](../README.md) to supply a compatible CPC disk image and run the build. `-CheckDisk` checks compatibility without running the toolchain. The build accepts explicit tool paths when needed:
+Follow the [README](../README.md) to supply a compatible CPC disk image and run the build. `-CheckDisk` stops before compilation. For a disk with a different SHA-256, `-TryOtherDisk` skips the confirmation prompt and runs the required data checks. The build accepts explicit tool paths when needed:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -Disk 'C:\Games\Sorcery Plus (UK) (1985).dsk' -Python 'C:\Tools\python.exe' -Node 'C:\Tools\node.exe' -Zig 'C:\Tools\zig.exe'

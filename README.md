@@ -14,7 +14,7 @@ Sorcery+ is a two-chapter adventure where you fly between rooms, rescue captured
 
 ## Compatible disk
 
-Supply your own Amstrad CPC `.dsk` image. The build uses the following UK disk dump. The filename is listed for identification and can be changed. Compatibility is checked using SHA-256.
+Supply your own Amstrad CPC `.dsk` image. The following UK disk dump is the reference. The filename is listed for identification and can be changed.
 
 | Field | Tested disk image |
 | --- | --- |
@@ -22,13 +22,15 @@ Supply your own Amstrad CPC `.dsk` image. The build uses the following UK disk d
 | MD5 | `463492394b61a118543fd49f8f669ca9` |
 | SHA-256 | `f5dee21140345ea84bee66ccf86db892c079ce13bc1d13c240a2103ba0ce2a26` |
 
-To check a disk without installing the build tools, open PowerShell in this folder and run:
+To check a disk, open PowerShell in this folder and run:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Build.ps1 -CheckDisk -Disk 'C:\Games\Sorcery Plus (UK) (1985).dsk'
 ```
 
-Replace the example path with your own. You can also put a copy beside `Build.ps1` named `game.dsk` and omit `-Disk`. If you get **Unsupported disk image**, check the hash against the table. Renaming a different dump does not change its hash.
+Replace the example path with your own. You can also put a copy beside `Build.ps1` named `game.dsk` and omit `-Disk`.
+
+An exact SHA-256 match can be checked without the build tools. For a different hash, PowerShell asks whether to try the image. Type **Y** to extract and check the required game files and sectors with Node.js and Python. A differently packaged standard or extended CPC DSK can pass if its required data matches the reference. A modified game revision needs separate porting work. Use `-TryOtherDisk` to run the same compatibility checks without the prompt.
 
 ## Build and play
 
@@ -90,7 +92,7 @@ Choose **Help → Room Atlas** to explore all 75 rooms in your browser. Keep the
 | **Find a room** | Jump to a room by number or name. Clicking a room on the map highlights its door connections. Click a door in the details panel to follow it. Dashed gold trails mark item locks, purple marks the chapter gate, and arrows show one-way links. |
 | **Find an object** | List locations by the number of door transitions from the selected room. Click a result to select that room on the map. |
 | **Room details** | Inspect doors, objects, monsters, cauldron effects, lock and barrier requirements, and room notes. Check an object or monster to show it in the room preview. Drag the divider to resize the panel. Use the toolbar to show or hide either sidebar. |
-| **Live update** | Show current objects, monsters, and rescued sorcerers. A gold frame marks the player's room and its preview shows the player's position. Turn live update off to see the starting room setup. |
+| **Live update** | Show current objects, monsters, rescued sorcerers, and door locks. A door you've unlocked is marked **Unlocked** in the room panel. A route turns green when its displayed directions are unlocked. A gold frame marks the player's room and its preview shows the player's position. Turn live update off to see the starting room setup. |
 | **Save note / Open room guide** | Save your own notes for a room in `profiles\Room-Notes.json`, or open the separate guide for a room-by-room reference. |
 
 ### Atlas screenshots

@@ -58,7 +58,9 @@ aside h3 { font-size:.8rem; color:var(--muted); letter-spacing:.1em; text-transf
 .door-list { display:grid; gap:6px }
 .door-list button { text-align:left; width:100%; line-height:1.35 }
 .door-list small { color:var(--muted); display:block; margin-top:4px }
+.door-list small[hidden] { display:none }
 .door-list small.locked { color:#ffd17a }
+.door-list small.unlocked { color:#9fe0cd }
 .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:.74rem; color:var(--muted); margin-left:10px }
 .legend span::before { content:''; display:inline-block; width:15px; margin:0 5px 3px 0; border-top:2px solid #74dfbd }
 .legend .locked::before { border-color:#ffd17a; border-top-style:dashed }
@@ -73,7 +75,8 @@ aside h3 { font-size:.8rem; color:var(--muted); letter-spacing:.1em; text-transf
 .room[data-chapter="2"] .id { fill:#c3a7e8 }
 .room .name { fill:#edf4f8; font:600 12px 'Segoe UI',sans-serif }
 .wire { fill:none; stroke:#74dfbd; stroke-width:3.2; stroke-linecap:round; stroke-linejoin:round; pointer-events:none }
-.wire.locked { stroke:#ffd17a; stroke-dasharray:9 6 }
+.connection[data-type="locked"] > .trail { stroke:#ffd17a; stroke-dasharray:9 6 }
+.connection[data-type="locked"] > .glow { stroke:#ffd17a }
 .wire.chapter { stroke:#ca9bff; stroke-width:4; stroke-dasharray:15 5 2 5 }
 .wire.alternate { stroke:#91afc4; stroke-dasharray:5 5; stroke-width:2.6 }
 .wire.shadow { stroke:#0b1118; stroke-width:9; stroke-dasharray:none }
@@ -82,7 +85,7 @@ aside h3 { font-size:.8rem; color:var(--muted); letter-spacing:.1em; text-transf
 .wire.active.shadow { stroke-width:9 }
 .wire.active.glow { stroke-width:13 }
 .wire-rune { fill:#17212b; stroke:#b7f5db; stroke-width:2; pointer-events:none; opacity:.9 }
-.wire-rune.locked { stroke:#ffd17a }
+.connection[data-type="locked"] > .wire-rune { stroke:#ffd17a }
 .wire-rune.chapter { stroke:#ca9bff }
 .door-dot { fill:#0b1118; stroke:#9fe0cd; stroke-width:2.5; pointer-events:none }
 .door-letter { paint-order:stroke; fill:#fff4cf; stroke:#081017; stroke-width:3px; font:bold 12px Consolas,monospace; pointer-events:none }
@@ -275,11 +278,11 @@ for (const [x,y,flipX,flipY] of [[0,0,1,1],[card.width,0,-1,1],[0,card.height,1,
 }
 svgNode('text',{x:card.width/2,y:-13,'text-anchor':'middle'},playerFrame).textContent = 'Player here';
 const wires = connections.map((edge, index) => {
-  const group = svgNode('g', {}, wireLayer);
+  const group = svgNode('g', {class:'connection','data-edge':index,'data-type':edge.type}, wireLayer);
   const path = roundedPath(layout.paths[index]);
   svgNode('path', {d:path, class:'wire shadow'}, group);
   svgNode('path', {d:path, class:`wire ${edge.type} glow`}, group);
-  const trail = svgNode('path', {d:path, class:`wire ${edge.type}`, ...(edge.bidirectional ? {} : {'marker-end':'url(#arrow)'})}, group);
+  const trail = svgNode('path', {d:path, class:`wire trail ${edge.type}`, ...(edge.bidirectional ? {} : {'marker-end':'url(#arrow)'})}, group);
   const middle = trail.getPointAtLength(trail.getTotalLength()/2);
   svgNode('path',{d:'M0 -8L5 0L0 8L-5 0Z',class:`wire-rune ${edge.type}`,transform:`translate(${middle.x},${middle.y})`},group);
   for (const id of [edge.from,edge.to]) {
@@ -388,6 +391,23 @@ function drawPreviewSprites(canvas, photo, room, checked) {
 
 const gameNotes = location.protocol === 'http:' && location.hostname === '127.0.0.1';
 
+function doorLock(door) {
+  return liveState?.rooms?.[door.id.slice(0,2)]?.doorLocks?.[door.slot] ?? door.lock;
+}
+
+function refreshDoorTrails() {
+  const types = connections.map(edge => {
+    if (edge.type==='chapter') return 'chapter';
+    const locked = doorLock(byDoor.get(edge.from)) ||
+      (edge.bidirectional && doorLock(byDoor.get(edge.to)));
+    return locked ? 'locked' : 'open';
+  });
+  for (const group of [...wires,...focusLayer.children]) {
+    const type = types[group.dataset.edge];
+    if (group.dataset.type!==type) group.dataset.type = type;
+  }
+}
+
 function liveRoom(room) {
   const snapshot = liveState?.active ? liveState.rooms[room.id] : null;
   if (!snapshot) return room;
@@ -415,7 +435,12 @@ function liveRoom(room) {
   }
   const player = liveState.room===room.id ? liveState.player : null;
   if (player) notes.unshift('Your sorcerer is in this room.');
-  return {...room,items,monsters,extraSprites,player,notes,prisoner:snapshot.prisoner?room.prisoner:null};
+  const doors = room.doors.map(door=>{
+    const lock = doorLock(door);
+    if (lock===door.lock) return door;
+    return {...door,requires:lock ? 'Sealed' : null,unlocked:!lock};
+  });
+  return {...room,doors,items,monsters,extraSprites,player,notes,prisoner:snapshot.prisoner?room.prisoner:null};
 }
 
 const liveToggle = get('live-update'), liveStatus = get('live-status');
@@ -428,6 +453,7 @@ if (!gameNotes) {
 
 function applyLiveState(snapshot) {
   liveState = snapshot;
+  refreshDoorTrails();
   const currentRoom = snapshot?.active ? byId.get(snapshot.room) : null;
   if (currentRoom!==outlinedRoom) {
     if (outlinedRoom) cards.get(outlinedRoom.id).setAttribute('aria-label',`${number(outlinedRoom)} ${outlinedRoom.title}`);
@@ -584,14 +610,14 @@ function showRoom(room, center = false) {
   const staticChecked = new Set(), liveHidden = new Set();
   htmlNode('h3',panel,'Doors from this room');
   const list = htmlNode('div',panel,null,'door-list');
-  for (const door of room.doors) {
+  const doorHints = room.doors.map(door=>{
     const target = byId.get(door.targetRoom);
     const button = htmlNode('button',list,`${door.id.at(-1)} → ${number(target)} ${cleanName(target)} · ${door.targetDoor.at(-1)}`);
     const edge = connections.find(edge => edge.from===door.id || (edge.bidirectional && edge.to===door.id));
-    const hint = [door.requires, edge && !edge.bidirectional ? 'One way' : ''].filter(Boolean).join(' · ');
-    if (hint) htmlNode('small',button,hint,door.requires?'locked':'');
+    const hint = htmlNode('small',button);
     button.addEventListener('click',()=>showRoom(target,true));
-  }
+    return {hint,oneWay:edge && !edge.bidirectional};
+  });
   const details = htmlNode('div',panel,null,'room-details');
   let displayedRoom, detailsSignature, spriteSignature;
   const previewReady = photo.decode().then(()=>true,()=>false);
@@ -611,6 +637,13 @@ function showRoom(room, center = false) {
   refreshRoomState = ()=>{
     displayedRoom = liveRoom(room);
     const live = displayedRoom!==room;
+    displayedRoom.doors.forEach((door,index)=>{
+      const {hint,oneWay} = doorHints[index];
+      const state = [door.unlocked ? 'Unlocked' : door.requires,oneWay ? 'One way' : ''].filter(Boolean).join(' · ');
+      if (hint.textContent!==state) hint.textContent = state;
+      hint.hidden = !state;
+      hint.className = door.unlocked ? 'unlocked' : door.requires ? 'locked' : '';
+    });
     const entries = roomDetails(displayedRoom,byId,number,true);
     const records = [displayedRoom.items,displayedRoom.monsters];
     const labelSignature = JSON.stringify([live,entries,records.map(group=>group.map(record=>record.slot))]);

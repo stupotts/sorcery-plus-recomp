@@ -156,8 +156,28 @@ applyLiveState({...sample,room:'27'});
 check(playerFrame.getAttribute('transform')===atlasPosition('27'), 'border moves on a live room transition');
 showRoom(byId.get('1C'));
 check(details().textContent.includes('1 of 8 sorcerers freed') && liveRoom(byId.get('1C')).extraSprites.length===1, 'Sanctuary shows freed sorcerers');
+
+// Room 16-B and room 19-D have separate Coat of Arms locks on one route.
+const lockIndex = connections.findIndex(edge => edge.from==='16-B' && edge.to==='19-D');
+const selectedTrail = () => focusLayer.querySelector(`[data-edge="${lockIndex}"]`);
+const lockHint = () => [...document.querySelectorAll('.door-list button')]
+  .find(button=>button.textContent.startsWith('B →')).querySelector('small');
+const withDoorLocks = (near,far) => ({...sample,rooms:{...sample.rooms,
+  '16':{items:[],monsters:[],prisoner:false,doorLocks:[0,near,null,null]},
+  '19':{items:[],monsters:[],prisoner:true,doorLocks:[0,0,0,far]}
+}});
+showRoom(byId.get('16'));
+check(lockHint().textContent.includes('COAT OF ARMS') && selectedTrail().dataset.type==='locked', 'default and older live data show original door lock');
+applyLiveState(withDoorLocks(0,1));
+check(lockHint().textContent==='Unlocked' && selectedTrail().dataset.type==='locked', 'unlocked departure is visible while the opposite lock remains');
+check(!details().textContent.includes('Coat Of Arms'), 'unlocked door leaves the requirements list');
+applyLiveState(withDoorLocks(0,0));
+check(wires[lockIndex].dataset.type==='open' && selectedTrail().dataset.type==='open' &&
+      getComputedStyle(selectedTrail().querySelector('.trail')).strokeDasharray==='none', 'both directions unlocked turn the map and highlighted trail green');
+check(wires[connections.findIndex(edge=>edge.type==='chapter')].dataset.type==='chapter', 'chapter gate keeps its own trail style');
 live.checked=false;
 applyLiveState(null);
+check(lockHint().textContent.includes('COAT OF ARMS') && selectedTrail().dataset.type==='locked', 'disabling live mode restores the original lock and trail');
 check(playerFrame.getAttribute('visibility')==='hidden', 'turning off live mode hides the player border');
 showRoom(byId.get('00'));
 check(details().textContent.includes('Objects at the start') && details().textContent.includes('Shooting Star'), 'unchecking restores starting state');

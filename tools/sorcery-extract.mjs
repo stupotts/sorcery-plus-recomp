@@ -3,7 +3,6 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 
-const expectedHash = 'f5dee21140345ea84bee66ccf86db892c079ce13bc1d13c240a2103ba0ce2a26';
 const [imagePath, destination] = process.argv.slice(2);
 if (!imagePath || !destination) {
   throw new Error('Usage: node sorcery-extract.mjs <disk image> <new extraction folder>');
@@ -11,25 +10,36 @@ if (!imagePath || !destination) {
 
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const image = readFileSync(imagePath);
-if (hash(image) !== expectedHash) {
-  throw new Error('This extractor is scoped to the identified Sorcery Plus disk image.');
+const header = image.toString('ascii', 0, 34);
+const extended = header === 'EXTENDED CPC DSK File\r\nDisk-Info\r\n';
+const standard = header === 'MV - CPCEMU Disk-File\r\nDisk-Info\r\n';
+if ((!extended && !standard) || image[48] !== 40 || image[49] !== 1) {
+  throw new Error('Expected a 40-track, single-sided Amstrad CPC DSK image.');
 }
 
 const trackCount = image[48];
-const trackSize = image.readUInt16LE(50);
 const sectorSize = 512;
 const sectorsPerTrack = 9;
 const sectors = new Map();
 const unusualTracks = [];
 let secondStage;
+let trackStart = 256;
 
 for (let track = 0; track < trackCount; track++) {
-  const trackStart = 256 + track * trackSize;
+  const trackSize = extended ? image[52 + track] * 256 : image.readUInt16LE(50);
   const count = image[trackStart + 21];
+  if (!count || count > sectorsPerTrack || trackSize < 256 + count * sectorSize ||
+      trackStart + trackSize > image.length || image.toString('ascii', trackStart, trackStart + 12) !== 'Track-Info\r\n') {
+    throw new Error(`Unsupported layout or missing data on track ${track}`);
+  }
   const ids = [];
   for (let index = 0; index < count; index++) {
     const descriptor = trackStart + 24 + index * 8;
     const id = image[descriptor + 2];
+    if (image[descriptor + 3] !== 2 || (extended && image.readUInt16LE(descriptor + 6) !== sectorSize) ||
+        ids.includes(id)) {
+      throw new Error(`Unsupported sector layout on track ${track}`);
+    }
     const dataStart = trackStart + 256 + index * sectorSize;
     ids.push(id);
     if (id >= 0xc1 && id <= 0xc9) {
@@ -43,7 +53,9 @@ for (let track = 0; track < trackCount; track++) {
   if (count !== sectorsPerTrack || ids.some((id) => id < 0xc1 || id > 0xc9)) {
     unusualTracks.push({ track, sectorIds: ids.map((id) => id.toString(16).padStart(2, '0')) });
   }
+  trackStart += trackSize;
 }
+if (!secondStage) throw new Error('Missing Sorcery+ loader sector 7B on track 3.');
 
 function readSectors(first, count) {
   const blocks = [];
@@ -97,7 +109,13 @@ for (let offset = 0; offset < directory.length; offset += 32) {
   entries.push({ metadata, amsdosFile, payload });
 }
 
-const bootstrap = Buffer.from(entries.find(({ metadata }) => metadata.name === 'SORCERYP.BIN').payload);
+function filePayload(name) {
+  const matches = entries.filter(entry => entry.metadata.name === name);
+  if (matches.length !== 1) throw new Error(`Expected one ${name} file in the disk directory.`);
+  return matches[0].payload;
+}
+
+const bootstrap = Buffer.from(filePayload('SORCERYP.BIN'));
 // The bootstrap uses its already-decoded bytes as future XOR seeds.
 for (let pass = 0; pass < 256; pass++) {
   if (pass === 0x18) continue;
@@ -141,6 +159,7 @@ for (let room = 0; room < roomCount; room++) {
 }
 recovered.set('room-sectors-00-4e.bin', roomSectors);
 recovered.set('room-tile-maps-00-4e.bin', Buffer.concat(roomMaps));
+recovered.set('track-39-sector-c8.bin', readSectors(39 * sectorsPerTrack + 7, 1));
 recovered.set('track-39-sector-c9-high-scores.bin', readSectors(39 * sectorsPerTrack + 8, 1));
 
 // The second stage and main code apply NEG, RRCA, SUB $25 to file payloads.
@@ -216,7 +235,7 @@ function renderTileMap(tiles, tileMap, palette) {
   ]);
 }
 
-const title = entries.find(({ metadata }) => metadata.name === 'TITLEP.BIN').payload;
+const title = filePayload('TITLEP.BIN');
 recovered.set('title-art.png', renderTileMap(title, title.subarray(4096), secondStage.subarray(0x119, 0x129)));
 const code = recovered.get('CODE-decoded-7000.bin');
 const roomPalette = code.subarray(0x22fc, 0x230c);
@@ -239,9 +258,9 @@ for (const [name, bytes] of recovered) {
   writeFileSync(join(destination, 'recovered', name), bytes, { flag: 'wx' });
 }
 const manifest = {
-  diskSha256: expectedHash,
+  diskSha256: hash(image),
   diskLength: image.length,
-  format: 'Standard CPCEMU DSK',
+  format: extended ? 'Extended CPCEMU DSK' : 'Standard CPCEMU DSK',
   trackCount,
   sides: image[49],
   unusualTracks,

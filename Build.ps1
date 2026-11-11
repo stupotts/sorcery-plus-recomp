@@ -5,6 +5,7 @@ param(
     [string]$Zig,
     [ValidateSet('0','1','2','3')][string]$Optimize = '2',
     [switch]$CheckDisk,
+    [switch]$TryOtherDisk,
     [switch]$Launch
 )
 
@@ -15,12 +16,17 @@ if (!(Test-Path -LiteralPath $Disk -PathType Leaf)) {
 }
 $Disk = (Resolve-Path -LiteralPath $Disk).ProviderPath
 $diskHash = (Get-FileHash -LiteralPath $Disk -Algorithm SHA256).Hash
-if ($diskHash -ne $expectedHash) {
-    throw "Unsupported disk image. Expected SHA-256 $expectedHash, got $diskHash. See README.md for the tested dump."
-}
-if ($CheckDisk) {
+if ($CheckDisk -and $diskHash -eq $expectedHash) {
     Write-Output "Compatible disk image. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
     return
+}
+if ($diskHash -ne $expectedHash -and !$TryOtherDisk) {
+    Write-Host "This disk image differs from the tested dump. SHA-256 $diskHash"
+    $choice = Read-Host 'Try extracting it and checking the game data? [y/N]'
+    if ($choice -notmatch '^(y|yes)$') {
+        Write-Output 'Disk check canceled.'
+        return
+    }
 }
 
 function Find-BuildTool([string]$Override, [string]$Command, [string]$Option) {
@@ -39,7 +45,6 @@ function Invoke-BuildStep([string]$Name, [string]$Tool, [string[]]$Arguments) {
 
 $Python = Find-BuildTool $Python 'python.exe' '-Python'
 $Node = Find-BuildTool $Node 'node.exe' '-Node'
-$Zig = Find-BuildTool $Zig 'zig.exe' '-Zig'
 
 $native = Join-Path $PSScriptRoot 'native'
 $map = Join-Path $PSScriptRoot 'map'
@@ -53,7 +58,12 @@ $stagedGame = Join-Path $work 'SorceryPlus.exe'
 [void][IO.Directory]::CreateDirectory($work)
 try {
     Invoke-BuildStep 'Extracting disk' $Node @((Join-Path $PSScriptRoot 'tools\sorcery-extract.mjs'), $Disk, $extracted)
-    Invoke-BuildStep 'Preparing assets' $Python @((Join-Path $native 'prepare.py'), $Disk, $extracted, $work)
+    Invoke-BuildStep 'Checking and preparing game assets' $Python @((Join-Path $native 'prepare.py'), $extracted, $work)
+    if ($CheckDisk) {
+        Write-Output "Compatible game data. MD5 $((Get-FileHash -LiteralPath $Disk -Algorithm MD5).Hash)"
+        return
+    }
+    $Zig = Find-BuildTool $Zig 'zig.exe' '-Zig'
     Invoke-BuildStep 'Translating Z80 code' $Python @((Join-Path $native 'translate.py'), $recovered, (Join-Path $work 'translated.inc'))
 
     $compile = @{ Python = $Python; Zig = $Zig; Work = $work; Optimize = $Optimize }
